@@ -49,8 +49,11 @@ impl fmt::Display for RobeColor {
 
 #[binrw::binread]
 #[derive(Debug)]
-#[brw(little, magic = b"\x16\x00\x00\x80\x00\x00\x00\x00")]
+#[brw(little)]
 pub struct Savefile {
+    #[brw(count = 8)]
+    _unknown0: Vec<u8>,
+
     pub robe: u32,
 
     pub symbol: u32,
