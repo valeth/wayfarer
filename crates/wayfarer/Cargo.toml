@@ -1,0 +1,16 @@
+[package]
+name = "wayfarer"
+version.workspace = true
+edition.workspace = true
+
+
+[dependencies]
+anyhow = "1.0"
+
+[dependencies.clap]
+version = "4.3"
+features = ["derive"]
+
+[dependencies.jrny-save]
+version = "0.1"
+path = "../save"
