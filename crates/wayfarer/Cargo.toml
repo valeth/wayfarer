@@ -2,6 +2,7 @@
 name = "wayfarer"
 version.workspace = true
 edition.workspace = true
+license_file.workspace = true
 
 
 [dependencies]
