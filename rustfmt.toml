@@ -1,13 +1,15 @@
 edition = "2021"
 
-# Just enforce it here as well instead of relying on editorconfig alone
+# Already set in editorconfig, just repeated here to be sure
 hard_tabs = false
 tab_spaces = 4
 newline_style = "Unix"
 
+# Unstable features
+unstable_features = true
+version = "Two"
 imports_granularity = "Module"
 group_imports = "StdExternalCrate"
-
 force_multiline_blocks = false
 fn_single_line = false
 comment_width = 100
