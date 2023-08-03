@@ -8,8 +8,13 @@ use jrny_save::Savefile;
 
 #[derive(Debug, ArgParser)]
 struct Args {
+    #[cfg(feature = "watch")]
+    #[arg(long, default_value_t = false)]
+    watch: bool,
+
     #[command(subcommand)]
     command: Command,
+
     path: PathBuf,
 }
 
@@ -23,11 +28,50 @@ enum Command {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    if !args.path.exists() {
+        anyhow::bail!("Could not find file at given path");
+    }
+
     match args.command {
-        Command::Show => show_all_info(&args.path)?,
+        Command::Show => {
+            show_all_info(&args.path)?;
+
+            #[cfg(feature = "watch")]
+            if args.watch {
+                watch_all_info(&args.path)?;
+            }
+        }
     }
 
     Ok(())
+}
+
+
+#[cfg(feature = "watch")]
+fn watch_all_info<P>(path: P) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    use std::sync::mpsc;
+
+    use notify::event::{AccessKind, AccessMode};
+    use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+
+    let (tx, rx) = mpsc::channel();
+    let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
+
+    println!("Watching file for changes...");
+    watcher.watch(path.as_ref(), RecursiveMode::NonRecursive)?;
+
+    let written_and_closed = EventKind::Access(AccessKind::Close(AccessMode::Write));
+
+    loop {
+        let event = rx.recv()?;
+
+        if event?.kind == written_and_closed {
+            show_all_info(&path).unwrap();
+        }
+    }
 }
 
 
