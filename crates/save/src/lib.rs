@@ -54,7 +54,7 @@ pub struct Savefile {
     #[br(count = 8)]
     _unknown0: Vec<u8>,
 
-    pub robe: u32,
+    robe: u32,
 
     pub symbol: u32,
 
@@ -164,10 +164,31 @@ impl Savefile {
         }
     }
 
+    pub fn set_robe_color(&mut self, color: RobeColor) {
+        self.robe = match (self.robe_color(), color) {
+            (RobeColor::Red, RobeColor::White) => self.robe + 4,
+            (RobeColor::White, RobeColor::Red) => self.robe - 4,
+            _ => return,
+        }
+    }
+
     pub fn robe_tier(&self) -> u32 {
         match self.robe_color() {
             RobeColor::Red => self.robe + 1,
             RobeColor::White => self.robe - 2,
+        }
+    }
+
+    pub fn set_robe_tier(&mut self, tier: u32) {
+        if tier < 1 || tier > 4 {
+            return;
+        }
+
+        self.robe = match self.robe_color() {
+            RobeColor::Red => tier - 1,
+            // There can't be a tier 1 white robe, setting it to the lowers possible tier
+            RobeColor::White if tier == 1 => 4,
+            RobeColor::White => tier + 2,
         }
     }
 }
