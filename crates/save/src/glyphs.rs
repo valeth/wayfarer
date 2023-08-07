@@ -1,8 +1,8 @@
-use binrw::BinRead;
+use binrw::{BinRead, BinWrite};
 
 
-#[derive(Debug, BinRead)]
-pub struct Glyphs(#[brw(count = 6)] Vec<LevelGlyphs>);
+#[derive(Debug, Clone, BinRead, BinWrite)]
+pub struct Glyphs(#[br(count = 6)] Vec<LevelGlyphs>);
 
 impl Glyphs {
     const COUNT: [usize; 6] = [3, 3, 4, 3, 4, 4];
@@ -32,11 +32,11 @@ impl Glyphs {
 }
 
 
-#[derive(Debug, BinRead)]
+#[derive(Debug, Clone, BinRead, BinWrite)]
 pub struct LevelGlyphs {
     status_flags: u8,
 
-    #[brw(count = 343)]
+    #[br(count = 343)]
     _unused: Vec<u8>,
 }
 

@@ -1,7 +1,7 @@
-use binrw::BinRead;
+use binrw::{BinRead, BinWrite};
 
 
-#[derive(Debug, BinRead)]
+#[derive(Debug, Clone, Copy, BinRead, BinWrite)]
 pub struct Murals {
     status_flags: u16,
 }

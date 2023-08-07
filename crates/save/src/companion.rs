@@ -1,9 +1,9 @@
 use std::io::SeekFrom;
 
-use binrw::{BinRead, NullString};
+use binrw::{BinRead, BinWrite, BinWriterExt, NullString};
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Companions(Vec<CompanionWithId>);
 
 impl Companions {
@@ -49,11 +49,32 @@ impl BinRead for Companions {
     }
 }
 
+impl BinWrite for Companions {
+    type Args<'a> = ();
 
-#[derive(Debug)]
+    fn write_options<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        endian: binrw::Endian,
+        _args: Self::Args<'_>,
+    ) -> binrw::BinResult<()> {
+        for companion in &self.0 {
+            writer.write_type(companion, endian)?;
+            writer.write_all(&[0x01, 0x00, 0x10, 0x01])?;
+        }
+
+        Ok(())
+    }
+}
+
+
+#[derive(Debug, Clone)]
 pub struct CompanionSymbols(Vec<CompanionWithSymbol>);
 
 impl CompanionSymbols {
+    const ENTRY_SIZE: i64 = 60;
+    const SECTION_SIZE: i64 = 960;
+
     pub fn iter(&self) -> std::slice::Iter<CompanionWithSymbol> {
         self.0.iter()
     }
@@ -80,27 +101,48 @@ impl BinRead for CompanionSymbols {
             let companion: CompanionWithSymbol = <_>::read_options(reader, endian, ())?;
 
             if companion.name.is_empty() {
-                reader.seek(SeekFrom::Current(-60))?;
+                reader.seek(SeekFrom::Current(-Self::ENTRY_SIZE))?;
                 break;
             }
 
             companions.push(companion);
         }
 
-        let padding = 960 - (companions.len() * 60);
-        reader.seek(SeekFrom::Current(padding as i64))?;
+        let padding = Self::SECTION_SIZE - (companions.len() as i64 * Self::ENTRY_SIZE);
+        reader.seek(SeekFrom::Current(padding))?;
 
         Ok(Self(companions))
     }
 }
 
+impl BinWrite for CompanionSymbols {
+    type Args<'a> = ();
 
-#[derive(Debug, BinRead)]
+    fn write_options<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        endian: binrw::Endian,
+        _args: Self::Args<'_>,
+    ) -> binrw::BinResult<()> {
+        for companion in &self.0 {
+            writer.write_type(companion, endian)?;
+        }
+
+        let padding = Self::SECTION_SIZE - (self.0.len() as i64 * Self::ENTRY_SIZE);
+        writer.write_all(&vec![0u8; padding as usize])?;
+
+        Ok(())
+    }
+}
+
+
+#[derive(Debug, Clone, BinRead, BinWrite)]
 pub struct CompanionWithId {
-    #[brw(pad_size_to = 24, map = |raw: NullString| raw.to_string())]
+    #[br(pad_size_to = 24, map = |raw: NullString| raw.to_string())]
+    #[bw(pad_size_to = 24, map = |s| NullString::from(s.as_ref()))]
     pub name: String,
 
-    #[brw(assert(steam_id != 0))]
+    #[br(assert(steam_id != 0))]
     pub steam_id: u32,
 }
 
@@ -117,14 +159,15 @@ impl CompanionWithId {
 }
 
 
-#[derive(Debug, BinRead)]
+#[derive(Debug, Clone, BinRead, BinWrite)]
 pub struct CompanionWithSymbol {
-    #[brw(pad_size_to = 52, map = |raw: NullString| raw.to_string())]
+    #[br(pad_size_to = 52, map = |raw: NullString| raw.to_string())]
+    #[bw(pad_size_to = 52, map = |s| NullString::from(s.as_ref()))]
     pub name: String,
 
-    #[brw(count = 4)]
+    #[br(count = 4)]
     _unknown1: Vec<u8>,
 
-    #[brw(assert((0..=21).contains(&symbol)))]
+    #[br(assert((0..=21).contains(&symbol)))]
     pub symbol: u32,
 }

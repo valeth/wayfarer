@@ -5,9 +5,9 @@ mod test;
 
 
 use core::fmt;
-use std::io::Read;
+use std::io::{Read, Write};
 
-use binrw::{BinRead, BinReaderExt};
+use binrw::{until_eof, BinRead, BinReaderExt, BinWriterExt};
 use chrono::{DateTime, NaiveDateTime, Utc};
 
 use crate::companion::{CompanionSymbols, CompanionWithId, Companions};
@@ -31,7 +31,7 @@ pub const LEVEL_NAMES: [&str; 12] = [
 ];
 
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RobeColor {
     Red,
     White,
@@ -47,11 +47,11 @@ impl fmt::Display for RobeColor {
 }
 
 
-#[binrw::binread]
-#[derive(Debug)]
+#[binrw::binrw]
+#[derive(Debug, Clone)]
 #[brw(little)]
 pub struct Savefile {
-    #[brw(count = 8)]
+    #[br(count = 8)]
     _unknown0: Vec<u8>,
 
     pub robe: u32,
@@ -60,57 +60,70 @@ pub struct Savefile {
 
     pub scarf_length: u32,
 
-    #[brw(count = 4)]
+    #[br(count = 4)]
     _unknown1: Vec<u8>,
 
-    #[brw(assert(current_level <= 12))]
+    #[br(assert(current_level <= 12))]
     pub current_level: u64,
 
     pub total_collected_symbols: u32,
 
-    #[brw(assert(collected_symbols <= 21))]
+    #[br(assert(collected_symbols <= 21))]
     pub collected_symbols: u32,
 
     pub murals: Murals,
 
-    #[brw(count = 22)]
+    #[br(count = 22)]
     _unknown2: Vec<u8>,
 
-    #[brw(parse_with = parse_last_played)]
+    #[br(parse_with = parse_last_played)]
+    #[bw(write_with = write_last_played)]
     pub last_played: DateTime<Utc>,
 
-    #[brw(count = 4)]
+    #[br(count = 4)]
     _unknown3: Vec<u8>,
 
     pub journey_count: u64,
 
     pub glyphs: Glyphs,
 
-    #[brw(count = 2404)]
+    #[br(count = 2404)]
     _unknown4: Vec<u8>,
 
     pub companion_symbols: CompanionSymbols,
 
     pub companions_met: u32,
 
-    #[brw(count = 1024)]
+    #[br(count = 1024)]
     _unknown6: Vec<u8>,
 
     pub total_companions_met: u32,
 
-    #[brw(count = 24)]
+    #[br(count = 24)]
     _unknown7: Vec<u8>,
 
     pub companions: Companions,
+
+    #[br(parse_with = until_eof)]
+    _unknown8: Vec<u8>,
 }
 
 impl Savefile {
-    pub fn from_reader<R>(mut reader: R) -> std::io::Result<Self>
+    pub fn from_reader<R>(mut reader: R) -> binrw::BinResult<Self>
     where
         R: Read + BinReaderExt,
     {
         // TODO: implement error type
-        Ok(reader.read_le().unwrap())
+        Ok(reader.read_le()?)
+    }
+
+    pub fn write<W>(&self, mut writer: W) -> binrw::BinResult<()>
+    where
+        W: Write + BinWriterExt,
+    {
+        writer.write_le(self)?;
+
+        Ok(())
     }
 
     pub fn current_companions<'a>(&'a self) -> impl Iterator<Item = &'a CompanionWithId> {
@@ -168,4 +181,14 @@ fn parse_last_played() -> binrw::BinResult<DateTime<Utc>> {
     let datetime = DateTime::from_utc(datetime, Utc);
 
     Ok(datetime)
+}
+
+#[binrw::writer(writer, endian)]
+fn write_last_played(datetime: &DateTime<Utc>) -> binrw::BinResult<()> {
+    let timestamp = datetime.timestamp_millis();
+    let timestamp = (timestamp + 11_644_473_600_000) * 10_000;
+
+    writer.write_type(&timestamp, endian)?;
+
+    Ok(())
 }
