@@ -16,7 +16,7 @@ fn general_info() {
     assert_eq!(savefile.robe_color(), RobeColor::Red);
     assert_eq!(savefile.robe_tier(), 4);
 
-    assert_eq!(savefile.symbol, 7);
+    assert_eq!(savefile.symbol.id, 7);
     assert_eq!(savefile.scarf_length, 27);
     assert_eq!(savefile.current_level, 1);
     assert_eq!(savefile.total_collected_symbols, 107);

@@ -1,6 +1,7 @@
 mod companion;
 mod glyphs;
 mod murals;
+mod symbol;
 mod test;
 
 
@@ -9,6 +10,7 @@ use std::io::{Read, Write};
 
 use binrw::{until_eof, BinRead, BinReaderExt, BinWriterExt};
 use chrono::{DateTime, NaiveDateTime, Utc};
+use symbol::Symbol;
 
 use crate::companion::{CompanionSymbols, CompanionWithId, Companions};
 use crate::glyphs::Glyphs;
@@ -56,7 +58,7 @@ pub struct Savefile {
 
     robe: u32,
 
-    pub symbol: u32,
+    pub symbol: Symbol,
 
     pub scarf_length: u32,
 

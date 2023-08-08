@@ -63,7 +63,7 @@ fn edit_file(cur_savefile: &Savefile, args: &Args) -> Result<Savefile> {
     }
 
     if let Some(val) = args.symbol {
-        savefile.symbol = val;
+        savefile.symbol.id = val;
     }
 
     if let Some(color) = &args.robe_color {
