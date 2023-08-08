@@ -33,6 +33,7 @@ pub(crate) fn execute(_app_args: &AppArgs, args: &Args) -> Result<()> {
     Ok(())
 }
 
+
 #[cfg(feature = "watch")]
 fn watch_all_info<P>(path: P) -> Result<()>
 where
@@ -40,23 +41,20 @@ where
 {
     use std::sync::mpsc;
 
-    use notify::event::{AccessKind, AccessMode};
-    use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+    use crate::watcher::FileWatcher;
 
     let (tx, rx) = mpsc::channel();
-    let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
+
+    let _watcher = FileWatcher::new(path.as_ref(), move || {
+        tx.send(()).unwrap();
+    });
 
     println!("Watching file for changes...");
-    watcher.watch(path.as_ref(), RecursiveMode::NonRecursive)?;
-
-    let written_and_closed = EventKind::Access(AccessKind::Close(AccessMode::Write));
 
     loop {
-        let event = rx.recv()?;
+        let _ = rx.recv()?;
 
-        if event?.kind == written_and_closed {
-            show_all_info(&path).unwrap();
-        }
+        show_all_info(&path).unwrap();
     }
 }
 
@@ -98,7 +96,7 @@ fn current_journey(savefile: &Savefile) {
     println!("Current Level: {:<10}", savefile.current_level_name());
     println!("Companions Met: {:<10}", savefile.companions_met);
     println!("Scarf Length: {:<10}", savefile.scarf_length);
-    println!("Symbol Number: {:<10}", savefile.symbol);
+    println!("Symbol Number: {:<10}", savefile.symbol.id);
     println!(
         "Robe: {:<10}, Tier {}",
         savefile.robe_color(),

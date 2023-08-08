@@ -1,6 +1,7 @@
 mod edit;
 mod gui;
 mod show;
+mod watcher;
 
 
 use anyhow::Result;

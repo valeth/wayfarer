@@ -3,11 +3,12 @@
 use std::fs::File;
 use std::io::{self, Stdout};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, TryRecvError};
 use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser as ArgParser;
-use crossterm::event::{Event, KeyCode};
+use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -17,6 +18,8 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{Block, Borders, Cell, Padding, Paragraph, Row, Table};
 
+#[cfg(feature = "watch")]
+use crate::watcher::FileWatcher;
 use crate::Args as AppArgs;
 
 
@@ -27,7 +30,23 @@ pub struct Args {
 
 
 struct State {
-    current_file: Option<Savefile>,
+    current_path: PathBuf,
+    current_file: Savefile,
+    #[cfg(feature = "watch")]
+    file_watcher: Option<FileWatcher>,
+}
+
+
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+enum Message {
+    Exit,
+
+    #[cfg(feature = "watch")]
+    ToggleFileWatch,
+
+    #[cfg(feature = "watch")]
+    ReloadFile,
 }
 
 
@@ -42,7 +61,10 @@ pub(crate) fn execute(_app_args: &AppArgs, args: &Args) -> Result<()> {
 
     // TODO: prompt file path
     let state = State {
-        current_file: Some(savefile),
+        current_path: args.path.clone(),
+        current_file: savefile,
+        #[cfg(feature = "watch")]
+        file_watcher: None,
     };
 
     run(&mut terminal, state)?;
@@ -51,6 +73,105 @@ pub(crate) fn execute(_app_args: &AppArgs, args: &Args) -> Result<()> {
 
     Ok(())
 }
+
+
+#[allow(unused_mut)]
+fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
+    let (mut evq_tx, evq_rx) = mpsc::channel::<Message>();
+
+    loop {
+        terminal.draw(|frame| {
+            render(&state, frame);
+        })?;
+
+        handle_events(&mut evq_tx)?;
+
+        let message = match evq_rx.try_recv() {
+            Ok(msg) => msg,
+            Err(TryRecvError::Empty) => continue,
+            Err(_) => break,
+        };
+
+        match message {
+            Message::Exit => break,
+
+            #[cfg(feature = "watch")]
+            Message::ToggleFileWatch => {
+                if state.file_watcher.is_none() {
+                    let evq_tx = evq_tx.clone();
+                    let callback = move || {
+                        evq_tx.send(Message::ReloadFile).unwrap();
+                    };
+                    let file_watcher = FileWatcher::new(&state.current_path, callback);
+                    state.file_watcher = Some(file_watcher);
+                } else {
+                    state.file_watcher = None;
+                }
+            }
+
+            #[cfg(feature = "watch")]
+            Message::ReloadFile => {
+                let savefile = load_savefile(&state.current_path)?;
+                state.current_file = savefile;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+
+fn handle_events(event_queue: &mut mpsc::Sender<Message>) -> Result<()> {
+    if !event::poll(Duration::from_millis(250))? {
+        return Ok(());
+    }
+
+    match event::read()? {
+        Event::Key(key) => handle_keyboard_input(key, event_queue)?,
+        _ => return Ok(()),
+    }
+
+    Ok(())
+}
+
+
+fn handle_keyboard_input(key: KeyEvent, event_queue: &mut mpsc::Sender<Message>) -> Result<()> {
+    let message = match key.code {
+        KeyCode::Char('q') => Message::Exit,
+
+        #[cfg(feature = "watch")]
+        KeyCode::Char('w') => Message::ToggleFileWatch,
+
+        _ => return Ok(()),
+    };
+
+    event_queue.send(message)?;
+
+    Ok(())
+}
+
+
+fn setup() -> Result<Terminal> {
+    let mut stdout = io::stdout();
+
+    enable_raw_mode()?;
+
+    execute!(stdout, EnterAlternateScreen)?;
+
+    Ok(Terminal::new(CrosstermBackend::new(stdout))?)
+}
+
+
+fn reset(mut terminal: Terminal) -> Result<()> {
+    disable_raw_mode()?;
+
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+
+    terminal.show_cursor()?;
+
+    Ok(())
+}
+
 
 fn load_savefile<P>(path: P) -> Result<Savefile>
 where
@@ -63,11 +184,39 @@ where
 }
 
 
-fn render(savefile: &Savefile, mut frame: &mut Frame) {
+fn render(state: &State, mut frame: &mut Frame) {
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(40), Constraint::Length(2)])
+        .split(frame.size());
+
+    render_info(&state.current_file, &mut frame, rows[0]);
+
+    let status_block = Block::default().padding(Padding::horizontal(2));
+
+    #[cfg(feature = "watch")]
+    let text = format!(
+        "{} file: {}",
+        if state.file_watcher.is_some() {
+            "Watching"
+        } else {
+            "Showing"
+        },
+        state.current_path.display()
+    );
+    #[cfg(not(feature = "watch"))]
+    let text = format!("Showing file: {}", state.current_path.display());
+
+    let status = Paragraph::new(text).block(status_block);
+    frame.render_widget(status, rows[1])
+}
+
+
+fn render_info(savefile: &Savefile, mut frame: &mut Frame, area: Rect) {
     let columns = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
-        .split(frame.size());
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
 
     let left_column = Layout::default()
         .direction(Direction::Vertical)
@@ -82,6 +231,7 @@ fn render(savefile: &Savefile, mut frame: &mut Frame) {
         .direction(Direction::Vertical)
         .constraints([Constraint::Ratio(10, 10)])
         .split(columns[1]);
+
 
     render_stats(&savefile, &mut frame, left_column[0]);
     render_glyphs(&savefile, &mut frame, left_column[1]);
@@ -98,7 +248,7 @@ fn render_stats<'a>(savefile: &Savefile, frame: &mut Frame, area: Rect) {
 
     let layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Ratio(1, 4), Constraint::Ratio(3, 4)])
+        .constraints([Constraint::Percentage(25), Constraint::Percentage(75)])
         .split(stats_section_block.inner(area));
 
     let stats_block = Block::default().title("Stats");
@@ -249,53 +399,4 @@ fn render_murals<'a>(savefile: &Savefile, frame: &mut Frame, area: Rect) {
     .block(block);
 
     frame.render_widget(table, area);
-}
-
-fn run(terminal: &mut Terminal, state: State) -> Result<()> {
-    loop {
-        terminal.draw(|frame| {
-            if let Some(savefile) = &state.current_file {
-                render(savefile, frame);
-            }
-        })?;
-
-        if quitting()? {
-            break;
-        }
-    }
-
-    Ok(())
-}
-
-
-fn quitting() -> Result<bool> {
-    if event::poll(Duration::from_millis(250))? {
-        if let Event::Key(key) = event::read()? {
-            return Ok(KeyCode::Char('q') == key.code);
-        }
-    }
-
-    Ok(false)
-}
-
-
-fn setup() -> Result<Terminal> {
-    let mut stdout = io::stdout();
-
-    enable_raw_mode()?;
-
-    execute!(stdout, EnterAlternateScreen)?;
-
-    Ok(Terminal::new(CrosstermBackend::new(stdout))?)
-}
-
-
-fn reset(mut terminal: Terminal) -> Result<()> {
-    disable_raw_mode()?;
-
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-
-    terminal.show_cursor()?;
-
-    Ok(())
 }
