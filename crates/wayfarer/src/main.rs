@@ -1,4 +1,5 @@
 mod edit;
+mod gui;
 mod show;
 
 
@@ -21,15 +22,21 @@ pub(crate) enum CommandArgs {
 
     /// Edit verious aspect of save files
     Edit(edit::Args),
+
+    #[cfg(feature = "gui")]
+    Gui(gui::Args),
 }
 
 
 fn main() -> Result<()> {
     let args = Args::parse();
 
+
     match &args.command {
         CommandArgs::Show(sub_args) => show::execute(&args, sub_args)?,
         CommandArgs::Edit(sub_args) => edit::execute(&args, sub_args)?,
+        #[cfg(feature = "gui")]
+        CommandArgs::Gui(sub_args) => gui::execute(&args, sub_args)?,
     }
 
     Ok(())
