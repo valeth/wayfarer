@@ -23,9 +23,9 @@ wayfarer show <path-to-savefile>
 
 ## TUI Keybindings
 
-| Key | Description                                         |
-|:---:| --------------------------------------------------- |
-| ESC | Return to "normal mode"                             |
-| q   | Quits the application                               |
-| o   | Open a new file                                     |
-| w   | Toggle file watcher mode (requires "watch" feature) |
+| Key | Mode   | Description                                         |
+|:---:|:------:| --------------------------------------------------- |
+| ESC | Any    | Return to "normal mode"                             |
+| q   | Normal | Quits the application                               |
+| o   | Normal | Open a new file                                     |
+| w   | Normal | Toggle file watcher mode (requires "watch" feature) |
