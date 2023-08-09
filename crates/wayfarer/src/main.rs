@@ -1,6 +1,6 @@
 mod edit;
-mod gui;
 mod show;
+mod tui;
 mod watcher;
 
 
@@ -24,8 +24,8 @@ pub(crate) enum CommandArgs {
     /// Edit verious aspect of save files
     Edit(edit::Args),
 
-    #[cfg(feature = "gui")]
-    Gui(gui::Args),
+    #[cfg(feature = "tui")]
+    Tui(tui::Args),
 }
 
 
@@ -35,9 +35,11 @@ fn main() -> Result<()> {
 
     match &args.command {
         CommandArgs::Show(sub_args) => show::execute(&args, sub_args)?,
+
         CommandArgs::Edit(sub_args) => edit::execute(&args, sub_args)?,
-        #[cfg(feature = "gui")]
-        CommandArgs::Gui(sub_args) => gui::execute(&args, sub_args)?,
+
+        #[cfg(feature = "tui")]
+        CommandArgs::Tui(sub_args) => tui::execute(&args, sub_args)?,
     }
 
     Ok(())

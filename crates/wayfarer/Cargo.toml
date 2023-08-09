@@ -28,7 +28,8 @@ optional = true
 version = "0.27"
 optional = true
 
+
 [features]
-default = ["watch", "gui"]
+default = ["watch", "tui"]
 watch = ["dep:notify"]
-gui = ["dep:ratatui", "dep:crossterm"]
+tui = ["dep:ratatui", "dep:crossterm"]

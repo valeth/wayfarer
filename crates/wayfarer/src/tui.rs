@@ -1,4 +1,4 @@
-#![cfg(feature = "gui")]
+#![cfg(feature = "tui")]
 
 use std::fs::File;
 use std::io::{self, Stdout};
