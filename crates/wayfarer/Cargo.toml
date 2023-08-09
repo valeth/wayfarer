@@ -24,6 +24,10 @@ optional = true
 version = "0.22"
 optional = true
 
+[dependencies.tui-input]
+version = "0.8"
+optional = true
+
 [dependencies.crossterm]
 version = "0.27"
 optional = true
@@ -32,4 +36,4 @@ optional = true
 [features]
 default = ["watch", "tui"]
 watch = ["dep:notify"]
-tui = ["dep:ratatui", "dep:crossterm"]
+tui = ["dep:ratatui", "dep:tui-input", "dep:crossterm"]

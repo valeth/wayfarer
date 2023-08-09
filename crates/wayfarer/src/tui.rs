@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser as ArgParser;
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -17,6 +17,8 @@ use jrny_save::{Savefile, LEVEL_NAMES};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{Block, Borders, Cell, Padding, Paragraph, Row, Table};
+use tui_input::backend::crossterm::EventHandler;
+use tui_input::Input;
 
 #[cfg(feature = "watch")]
 use crate::watcher::FileWatcher;
@@ -32,6 +34,8 @@ pub struct Args {
 struct State {
     current_path: PathBuf,
     current_file: Savefile,
+    mode: Mode,
+    file_select: Input,
     #[cfg(feature = "watch")]
     file_watcher: Option<FileWatcher>,
 }
@@ -42,11 +46,26 @@ struct State {
 enum Message {
     Exit,
 
+    ToggleFileSelect,
+
+    SetMode(Mode),
+
+    LoadFile,
+
     #[cfg(feature = "watch")]
     ToggleFileWatch,
 
     #[cfg(feature = "watch")]
     ReloadFile,
+}
+
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    #[default]
+    Normal,
+
+    SelectFile,
 }
 
 
@@ -63,6 +82,8 @@ pub(crate) fn execute(_app_args: &AppArgs, args: &Args) -> Result<()> {
     let state = State {
         current_path: args.path.clone(),
         current_file: savefile,
+        mode: Mode::default(),
+        file_select: Input::default(),
         #[cfg(feature = "watch")]
         file_watcher: None,
     };
@@ -84,7 +105,7 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
             render(&state, frame);
         })?;
 
-        handle_events(&mut evq_tx)?;
+        handle_events(&mut evq_tx, &mut state)?;
 
         let message = match evq_rx.try_recv() {
             Ok(msg) => msg,
@@ -94,6 +115,29 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
 
         match message {
             Message::Exit => break,
+
+            Message::SetMode(mode) => {
+                state.mode = mode;
+            }
+
+            Message::LoadFile => {
+                let path = PathBuf::from(state.file_select.value());
+
+                state.current_file = load_savefile(&path)?;
+                state.current_path = path;
+
+                #[cfg(feature = "watch")]
+                if state.file_watcher.is_some() {
+                    state.file_watcher = None;
+                }
+            }
+
+            Message::ToggleFileSelect => {
+                state.mode = match state.mode {
+                    Mode::SelectFile => Mode::Normal,
+                    _ => Mode::SelectFile,
+                };
+            }
 
             #[cfg(feature = "watch")]
             Message::ToggleFileWatch => {
@@ -121,13 +165,13 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
 }
 
 
-fn handle_events(event_queue: &mut mpsc::Sender<Message>) -> Result<()> {
+fn handle_events(event_queue: &mut mpsc::Sender<Message>, state: &mut State) -> Result<()> {
     if !event::poll(Duration::from_millis(250))? {
         return Ok(());
     }
 
     match event::read()? {
-        Event::Key(key) => handle_keyboard_input(key, event_queue)?,
+        Event::Key(key) => handle_keyboard_input(key, event_queue, state)?,
         _ => return Ok(()),
     }
 
@@ -135,17 +179,40 @@ fn handle_events(event_queue: &mut mpsc::Sender<Message>) -> Result<()> {
 }
 
 
-fn handle_keyboard_input(key: KeyEvent, event_queue: &mut mpsc::Sender<Message>) -> Result<()> {
-    let message = match key.code {
-        KeyCode::Char('q') => Message::Exit,
+fn handle_keyboard_input(
+    key: KeyEvent,
+    event_queue: &mut mpsc::Sender<Message>,
+    state: &mut State,
+) -> Result<()> {
+    match (state.mode, key.code) {
+        (_, KeyCode::Esc) => {
+            event_queue.send(Message::SetMode(Mode::Normal))?;
+        }
+
+        (Mode::SelectFile, KeyCode::Enter) => {
+            event_queue.send(Message::LoadFile)?;
+            event_queue.send(Message::ToggleFileSelect)?;
+        }
+
+        (Mode::SelectFile, _) => {
+            state.file_select.handle_event(&Event::Key(key));
+        }
+
+        (Mode::Normal, KeyCode::Char('q')) => {
+            event_queue.send(Message::Exit)?;
+        }
+
+        (Mode::Normal, KeyCode::Char('o')) => {
+            event_queue.send(Message::ToggleFileSelect)?;
+        }
 
         #[cfg(feature = "watch")]
-        KeyCode::Char('w') => Message::ToggleFileWatch,
+        (Mode::Normal, KeyCode::Char('w')) => {
+            event_queue.send(Message::ToggleFileWatch)?;
+        }
 
-        _ => return Ok(()),
+        _ => (),
     };
-
-    event_queue.send(message)?;
 
     Ok(())
 }
@@ -156,7 +223,7 @@ fn setup() -> Result<Terminal> {
 
     enable_raw_mode()?;
 
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
 
     Ok(Terminal::new(CrosstermBackend::new(stdout))?)
 }
@@ -165,7 +232,11 @@ fn setup() -> Result<Terminal> {
 fn reset(mut terminal: Terminal) -> Result<()> {
     disable_raw_mode()?;
 
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
 
     terminal.show_cursor()?;
 
@@ -194,21 +265,32 @@ fn render(state: &State, mut frame: &mut Frame) {
 
     let status_block = Block::default().padding(Padding::horizontal(2));
 
-    #[cfg(feature = "watch")]
-    let text = format!(
-        "{} file: {}",
-        if state.file_watcher.is_some() {
-            "Watching"
-        } else {
-            "Showing"
-        },
-        state.current_path.display()
-    );
-    #[cfg(not(feature = "watch"))]
-    let text = format!("Showing file: {}", state.current_path.display());
+    match state.mode {
+        #[cfg(feature = "watch")]
+        Mode::Normal if state.file_watcher.is_some() => {
+            let text = format!("Watching file: {}", state.current_path.display());
+            let status = Paragraph::new(text).block(status_block);
+            frame.render_widget(status, rows[1]);
+        }
 
-    let status = Paragraph::new(text).block(status_block);
-    frame.render_widget(status, rows[1])
+        Mode::Normal => {
+            let text = format!("Showing file: {}", state.current_path.display());
+            let status = Paragraph::new(text).block(status_block);
+            frame.render_widget(status, rows[1]);
+        }
+
+        Mode::SelectFile => {
+            let scroll = state.file_select.visual_scroll(rows[1].width as usize);
+            let input = Paragraph::new(state.file_select.value())
+                .scroll((0, scroll as u16))
+                .block(status_block);
+            frame.render_widget(input, rows[1]);
+            frame.set_cursor(
+                rows[1].x + (state.file_select.visual_cursor() as u16) + 2,
+                rows[1].y,
+            );
+        }
+    }
 }
 
 
