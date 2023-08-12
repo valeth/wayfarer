@@ -1,13 +1,14 @@
 #![cfg(feature = "tui")]
 
 use std::io::{self, Stdout};
-use std::path::PathBuf;
 use std::sync::mpsc::{self, TryRecvError};
 use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser as ArgParser;
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent};
+use crossterm::event::{
+    DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
+};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -15,23 +16,23 @@ use crossterm::{event, execute};
 use jrny_save::{Savefile, LEVEL_NAMES};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::style::Style;
 use ratatui::widgets::{Block, Borders, Cell, Padding, Paragraph, Row, Table};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
+use crate::state::PersistentState;
 #[cfg(feature = "watch")]
 use crate::watcher::FileWatcher;
 use crate::Args as AppArgs;
 
 
 #[derive(Debug, Clone, ArgParser)]
-pub struct Args {
-    path: PathBuf,
-}
+pub struct Args;
 
 
 struct State {
-    current_file: Savefile,
+    persistent: PersistentState,
     mode: Mode,
     file_select: Input,
     #[cfg(feature = "watch")]
@@ -43,8 +44,6 @@ struct State {
 #[non_exhaustive]
 enum Message {
     Exit,
-
-    ToggleFileSelect,
 
     SetMode(Mode),
 
@@ -58,10 +57,12 @@ enum Message {
 }
 
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 enum Mode {
     #[default]
     Normal,
+
+    ShowError(String),
 
     SelectFile,
 }
@@ -71,14 +72,13 @@ type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
 type Frame<'a> = ratatui::Frame<'a, CrosstermBackend<Stdout>>;
 
 
-pub(crate) fn execute(_app_args: &AppArgs, args: &Args) -> Result<()> {
+pub(crate) fn execute(_app_args: &AppArgs, _args: &Args) -> Result<()> {
+    let persistent = PersistentState::load()?;
+
     let mut terminal = setup()?;
 
-    let savefile = Savefile::from_path(&args.path)?;
-
-    // TODO: prompt file path
     let state = State {
-        current_file: savefile,
+        persistent,
         mode: Mode::default(),
         file_select: Input::default(),
         #[cfg(feature = "watch")]
@@ -93,68 +93,79 @@ pub(crate) fn execute(_app_args: &AppArgs, args: &Args) -> Result<()> {
 }
 
 
-#[allow(unused_mut)]
+#[cfg_attr(not(feature = "watch"), allow(unused_mut))]
 fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
-    let (mut evq_tx, evq_rx) = mpsc::channel::<Message>();
+    let (mut msg_tx, msg_rx) = mpsc::channel::<Message>();
 
     loop {
         terminal.draw(|frame| {
-            render(&state, frame);
+            render(&mut state, frame);
         })?;
 
-        handle_events(&mut evq_tx, &mut state)?;
+        handle_events(&mut msg_tx, &mut state)?;
 
-        let message = match evq_rx.try_recv() {
-            Ok(msg) => msg,
-            Err(TryRecvError::Empty) => continue,
+        match msg_rx.try_recv() {
+            Ok(Message::Exit) => break,
+            Ok(message) => {
+                if let Err(err) = handle_message(&mut state, &mut msg_tx, message) {
+                    state.mode = Mode::ShowError(format!("{}", err));
+                }
+            }
+            Err(TryRecvError::Empty) => (),
             Err(_) => break,
         };
+    }
 
-        match message {
-            Message::Exit => break,
+    Ok(())
+}
 
-            Message::SetMode(mode) => {
-                state.mode = mode;
+
+#[cfg_attr(not(feature = "watch"), allow(unused_variables))]
+fn handle_message(
+    state: &mut State,
+    msg_tx: &mut mpsc::Sender<Message>,
+    message: Message,
+) -> Result<()> {
+    match message {
+        Message::SetMode(mode) => {
+            state.mode = mode;
+        }
+
+        Message::LoadFile => {
+            state
+                .persistent
+                .set_active_savefile_path(state.file_select.value())?;
+
+            #[cfg(feature = "watch")]
+            if state.file_watcher.is_some() {
+                state.file_watcher = None;
             }
 
-            Message::LoadFile => {
-                let path = PathBuf::from(state.file_select.value());
+            msg_tx.send(Message::SetMode(Mode::Normal))?;
+        }
 
-                state.current_file = Savefile::from_path(&path)?;
+        #[cfg(feature = "watch")]
+        Message::ToggleFileWatch if state.persistent.savefile.is_some() => {
+            let savefile = state.persistent.savefile.as_ref().unwrap();
 
-                #[cfg(feature = "watch")]
-                if state.file_watcher.is_some() {
-                    state.file_watcher = None;
-                }
-            }
-
-            Message::ToggleFileSelect => {
-                state.mode = match state.mode {
-                    Mode::SelectFile => Mode::Normal,
-                    _ => Mode::SelectFile,
+            if state.file_watcher.is_none() {
+                let evq_tx = msg_tx.clone();
+                let callback = move || {
+                    evq_tx.send(Message::ReloadFile).unwrap();
                 };
-            }
-
-            #[cfg(feature = "watch")]
-            Message::ToggleFileWatch => {
-                if state.file_watcher.is_none() {
-                    let evq_tx = evq_tx.clone();
-                    let callback = move || {
-                        evq_tx.send(Message::ReloadFile).unwrap();
-                    };
-                    let file_watcher = FileWatcher::new(&state.current_file.path, callback);
-                    state.file_watcher = Some(file_watcher);
-                } else {
-                    state.file_watcher = None;
-                }
-            }
-
-            #[cfg(feature = "watch")]
-            Message::ReloadFile => {
-                let savefile = Savefile::from_path(&state.current_file.path)?;
-                state.current_file = savefile;
+                let file_watcher = FileWatcher::new(&savefile.path, callback);
+                state.file_watcher = Some(file_watcher);
+            } else {
+                state.file_watcher = None;
             }
         }
+
+        #[cfg(feature = "watch")]
+        Message::ReloadFile if state.persistent.savefile.is_some() => {
+            state.persistent.reload_active_savefile()?;
+        }
+
+        _ => (),
     }
 
     Ok(())
@@ -177,17 +188,24 @@ fn handle_events(event_queue: &mut mpsc::Sender<Message>, state: &mut State) -> 
 
 fn handle_keyboard_input(
     key: KeyEvent,
-    event_queue: &mut mpsc::Sender<Message>,
+    msg_tx: &mut mpsc::Sender<Message>,
     state: &mut State,
 ) -> Result<()> {
-    match (state.mode, key.code) {
+    match (&state.mode, key.code) {
+        (_, KeyCode::Char('q')) if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            msg_tx.send(Message::Exit)?;
+        }
+
         (_, KeyCode::Esc) => {
-            event_queue.send(Message::SetMode(Mode::Normal))?;
+            msg_tx.send(Message::SetMode(Mode::Normal))?;
+        }
+
+        (Mode::ShowError(_), _) => {
+            msg_tx.send(Message::SetMode(Mode::Normal))?;
         }
 
         (Mode::SelectFile, KeyCode::Enter) => {
-            event_queue.send(Message::LoadFile)?;
-            event_queue.send(Message::ToggleFileSelect)?;
+            msg_tx.send(Message::LoadFile)?;
         }
 
         (Mode::SelectFile, _) => {
@@ -195,16 +213,16 @@ fn handle_keyboard_input(
         }
 
         (Mode::Normal, KeyCode::Char('q')) => {
-            event_queue.send(Message::Exit)?;
+            msg_tx.send(Message::Exit)?;
         }
 
         (Mode::Normal, KeyCode::Char('o')) => {
-            event_queue.send(Message::ToggleFileSelect)?;
+            msg_tx.send(Message::SetMode(Mode::SelectFile))?;
         }
 
         #[cfg(feature = "watch")]
         (Mode::Normal, KeyCode::Char('w')) => {
-            event_queue.send(Message::ToggleFileWatch)?;
+            msg_tx.send(Message::ToggleFileWatch)?;
         }
 
         _ => (),
@@ -240,42 +258,78 @@ fn reset(mut terminal: Terminal) -> Result<()> {
 }
 
 
-fn render(state: &State, mut frame: &mut Frame) {
+fn render(state: &mut State, mut frame: &mut Frame) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(40), Constraint::Length(2)])
         .split(frame.size());
 
-    render_info(&state.current_file, &mut frame, rows[0]);
+    match &state.persistent.savefile {
+        Some(savefile) => render_info(&savefile, &mut frame, rows[0]),
+        None => render_no_active_file(&mut frame, rows[0]),
+    }
 
+    render_status_bar(&state, &mut frame, rows[1]);
+}
+
+
+fn render_no_active_file(frame: &mut Frame, area: Rect) {
+    let info_block = Block::default()
+        .padding(Padding::horizontal(2))
+        .borders(Borders::ALL);
+
+    let info = Paragraph::new("No active file.\nPress 'o' to open a file, or 'q' to quit.")
+        .block(info_block);
+
+    frame.render_widget(info, area);
+}
+
+
+fn render_status_bar(state: &State, mut frame: &mut Frame, area: Rect) {
     let status_block = Block::default().padding(Padding::horizontal(2));
 
-    match state.mode {
-        #[cfg(feature = "watch")]
-        Mode::Normal if state.file_watcher.is_some() => {
-            let text = format!("Watching file: {}", state.current_file.path.display());
-            let status = Paragraph::new(text).block(status_block);
-            frame.render_widget(status, rows[1]);
+    match &state.mode {
+        Mode::ShowError(error_msg) => {
+            let error_msg = Paragraph::new(error_msg.clone())
+                .style(Style::default().fg(ratatui::style::Color::LightRed))
+                .block(status_block);
+            frame.render_widget(error_msg, area);
         }
+
+        #[cfg(feature = "watch")]
+        Mode::Normal if state.file_watcher.is_some() && state.persistent.savefile.is_some() => {
+            let savefile = state.persistent.savefile.as_ref().unwrap();
+            let text = format!("Watching file: {}", savefile.path.display());
+            let status = Paragraph::new(text).block(status_block);
+            frame.render_widget(status, area);
+        }
+
+        Mode::Normal if state.persistent.savefile.is_none() => (),
 
         Mode::Normal => {
-            let text = format!("Showing file: {}", state.current_file.path.display());
+            let savefile = state.persistent.savefile.as_ref().unwrap();
+            let text = format!("Showing file: {}", savefile.path.display());
             let status = Paragraph::new(text).block(status_block);
-            frame.render_widget(status, rows[1]);
+            frame.render_widget(status, area);
         }
 
-        Mode::SelectFile => {
-            let scroll = state.file_select.visual_scroll(rows[1].width as usize);
-            let input = Paragraph::new(state.file_select.value())
-                .scroll((0, scroll as u16))
-                .block(status_block);
-            frame.render_widget(input, rows[1]);
-            frame.set_cursor(
-                rows[1].x + (state.file_select.visual_cursor() as u16) + 2,
-                rows[1].y,
-            );
-        }
+        Mode::SelectFile => render_file_select(&state, &mut frame, status_block, area),
     }
+}
+
+fn render_file_select(state: &State, frame: &mut Frame, block: Block, area: Rect) {
+    const PROMPT: &str = "Open file:";
+    const PADDING: usize = 2;
+
+    let scroll = state.file_select.visual_scroll(area.width as usize);
+    let input = Paragraph::new(format!("{} {}", PROMPT, state.file_select.value()))
+        .scroll((0, scroll as u16))
+        .block(block);
+    frame.render_widget(input, area);
+    frame.set_cursor(
+        area.x + (state.file_select.visual_cursor() + PROMPT.len() + 1 + PADDING) as u16,
+        area.y,
+    );
 }
 
 

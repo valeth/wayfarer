@@ -1,5 +1,6 @@
 mod edit;
 mod show;
+mod state;
 mod tui;
 mod watcher;
 
@@ -31,7 +32,6 @@ pub(crate) enum CommandArgs {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-
 
     match &args.command {
         CommandArgs::Show(sub_args) => show::execute(&args, sub_args)?,
