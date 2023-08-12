@@ -33,6 +33,19 @@ pub const LEVEL_NAMES: [&str; 12] = [
 ];
 
 
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Failed to deserialize savefile")]
+    DeserializationFailed(binrw::Error),
+
+    #[error("Failed to serialize savefile")]
+    SerializationFailed(binrw::Error),
+}
+
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RobeColor {
     Red,
@@ -111,19 +124,18 @@ pub struct Savefile {
 }
 
 impl Savefile {
-    pub fn from_reader<R>(mut reader: R) -> binrw::BinResult<Self>
+    pub fn from_reader<R>(mut reader: R) -> Result<Self>
     where
         R: Read + BinReaderExt,
     {
-        // TODO: implement error type
-        Ok(reader.read_le()?)
+        Ok(reader.read_le().map_err(Error::DeserializationFailed)?)
     }
 
-    pub fn write<W>(&self, mut writer: W) -> binrw::BinResult<()>
+    pub fn write<W>(&self, mut writer: W) -> Result<()>
     where
         W: Write + BinWriterExt,
     {
-        writer.write_le(self)?;
+        writer.write_le(self).map_err(Error::SerializationFailed)?;
 
         Ok(())
     }
