@@ -6,7 +6,9 @@ mod test;
 
 
 use core::fmt;
-use std::io::{Read, Write};
+use std::fs::File;
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
 
 use binrw::{until_eof, BinRead, BinReaderExt, BinWriterExt};
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -43,6 +45,9 @@ pub enum Error {
 
     #[error("Failed to serialize savefile")]
     SerializationFailed(binrw::Error),
+
+    #[error("Failed to read file")]
+    FileReadingFailed(io::Error),
 }
 
 
@@ -66,6 +71,9 @@ impl fmt::Display for RobeColor {
 #[derive(Debug, Clone)]
 #[brw(little)]
 pub struct Savefile {
+    #[brw(ignore)]
+    pub path: PathBuf,
+
     #[br(count = 8)]
     _unknown0: Vec<u8>,
 
@@ -124,6 +132,19 @@ pub struct Savefile {
 }
 
 impl Savefile {
+    pub fn from_path<P>(path: P) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        let file = File::open(&path).map_err(Error::FileReadingFailed)?;
+        let savefile = Self {
+            path: path.as_ref().to_owned(),
+            ..Self::from_reader(file)?
+        };
+
+        Ok(savefile)
+    }
+
     pub fn from_reader<R>(mut reader: R) -> Result<Self>
     where
         R: Read + BinReaderExt,

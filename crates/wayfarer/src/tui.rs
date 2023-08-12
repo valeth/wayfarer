@@ -1,8 +1,7 @@
 #![cfg(feature = "tui")]
 
-use std::fs::File;
 use std::io::{self, Stdout};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc::{self, TryRecvError};
 use std::time::Duration;
 
@@ -32,7 +31,6 @@ pub struct Args {
 
 
 struct State {
-    current_path: PathBuf,
     current_file: Savefile,
     mode: Mode,
     file_select: Input,
@@ -76,11 +74,10 @@ type Frame<'a> = ratatui::Frame<'a, CrosstermBackend<Stdout>>;
 pub(crate) fn execute(_app_args: &AppArgs, args: &Args) -> Result<()> {
     let mut terminal = setup()?;
 
-    let savefile = load_savefile(&args.path)?;
+    let savefile = Savefile::from_path(&args.path)?;
 
     // TODO: prompt file path
     let state = State {
-        current_path: args.path.clone(),
         current_file: savefile,
         mode: Mode::default(),
         file_select: Input::default(),
@@ -123,8 +120,7 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
             Message::LoadFile => {
                 let path = PathBuf::from(state.file_select.value());
 
-                state.current_file = load_savefile(&path)?;
-                state.current_path = path;
+                state.current_file = Savefile::from_path(&path)?;
 
                 #[cfg(feature = "watch")]
                 if state.file_watcher.is_some() {
@@ -146,7 +142,7 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
                     let callback = move || {
                         evq_tx.send(Message::ReloadFile).unwrap();
                     };
-                    let file_watcher = FileWatcher::new(&state.current_path, callback);
+                    let file_watcher = FileWatcher::new(&state.current_file.path, callback);
                     state.file_watcher = Some(file_watcher);
                 } else {
                     state.file_watcher = None;
@@ -155,7 +151,7 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
 
             #[cfg(feature = "watch")]
             Message::ReloadFile => {
-                let savefile = load_savefile(&state.current_path)?;
+                let savefile = Savefile::from_path(&state.current_file.path)?;
                 state.current_file = savefile;
             }
         }
@@ -244,17 +240,6 @@ fn reset(mut terminal: Terminal) -> Result<()> {
 }
 
 
-fn load_savefile<P>(path: P) -> Result<Savefile>
-where
-    P: AsRef<Path>,
-{
-    let file = File::open(path)?;
-    let savefile = Savefile::from_reader(file)?;
-
-    Ok(savefile)
-}
-
-
 fn render(state: &State, mut frame: &mut Frame) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
@@ -268,13 +253,13 @@ fn render(state: &State, mut frame: &mut Frame) {
     match state.mode {
         #[cfg(feature = "watch")]
         Mode::Normal if state.file_watcher.is_some() => {
-            let text = format!("Watching file: {}", state.current_path.display());
+            let text = format!("Watching file: {}", state.current_file.path.display());
             let status = Paragraph::new(text).block(status_block);
             frame.render_widget(status, rows[1]);
         }
 
         Mode::Normal => {
-            let text = format!("Showing file: {}", state.current_path.display());
+            let text = format!("Showing file: {}", state.current_file.path.display());
             let status = Paragraph::new(text).block(status_block);
             frame.render_widget(status, rows[1]);
         }
