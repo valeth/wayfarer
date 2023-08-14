@@ -6,7 +6,7 @@ use clap::builder::PossibleValuesParser;
 use clap::{value_parser, Parser as ArgParser};
 use jrny_save::{RobeColor, Savefile, LEVEL_NAMES};
 
-use crate::Args as AppArgs;
+use crate::AppArgs;
 
 
 #[derive(Debug, Clone, ArgParser)]

@@ -1,5 +1,4 @@
 mod edit;
-mod show;
 mod tui;
 mod watcher;
 
@@ -26,37 +25,31 @@ lazy_static::lazy_static! {
 
 #[derive(Debug, ArgParser)]
 #[command(author, version, about)]
-pub(crate) struct Args {
+pub(crate) struct AppArgs {
+    #[command(flatten)]
+    tui_args: tui::Args,
+
     #[command(subcommand)]
-    command: CommandArgs,
+    command: Option<CommandArgs>,
 }
 
 
 #[derive(Debug, Clone, clap::Subcommand)]
 pub(crate) enum CommandArgs {
-    /// Display info about save files
-    Show(show::Args),
-
     /// Edit verious aspect of save files
     Edit(edit::Args),
-
-    #[cfg(feature = "tui")]
-    Tui(tui::Args),
 }
 
 
 fn main() -> Result<()> {
     tracing_setup()?;
 
-    let args = Args::parse();
+    let args = AppArgs::parse();
+
 
     match &args.command {
-        CommandArgs::Show(sub_args) => show::execute(&args, sub_args)?,
-
-        CommandArgs::Edit(sub_args) => edit::execute(&args, sub_args)?,
-
-        #[cfg(feature = "tui")]
-        CommandArgs::Tui(sub_args) => tui::execute(&args, sub_args)?,
+        Some(CommandArgs::Edit(sub_args)) => edit::execute(&args, sub_args)?,
+        None => tui::execute(&args.tui_args)?,
     }
 
     Ok(())

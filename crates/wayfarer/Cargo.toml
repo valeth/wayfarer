@@ -18,27 +18,23 @@ version = "4.3"
 features = ["derive"]
 
 [dependencies.jrny-save]
-version = "0.3"
+version = "0.4"
 path = "../save"
+
+[dependencies.ratatui]
+version = "0.22"
+
+[dependencies.tui-input]
+version = "0.8"
+
+[dependencies.crossterm]
+version = "0.27"
 
 [dependencies.notify]
 version = "6.0"
 optional = true
 
-[dependencies.ratatui]
-version = "0.22"
-optional = true
-
-[dependencies.tui-input]
-version = "0.8"
-optional = true
-
-[dependencies.crossterm]
-version = "0.27"
-optional = true
-
 
 [features]
-default = ["watch", "tui"]
+default = ["watch"]
 watch = ["dep:notify"]
-tui = ["dep:ratatui", "dep:tui-input", "dep:crossterm"]

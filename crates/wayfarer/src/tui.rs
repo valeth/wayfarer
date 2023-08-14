@@ -1,11 +1,10 @@
-#![cfg(feature = "tui")]
-
 mod events;
 mod state;
 mod view;
 
 
 use std::io::{self, Stdout};
+use std::path::PathBuf;
 use std::sync::mpsc::{self, TryRecvError};
 
 use anyhow::Result;
@@ -21,14 +20,17 @@ use ratatui::backend::CrosstermBackend;
 use tracing::{debug, error, info};
 
 use self::state::{Mode, State};
-use crate::Args as AppArgs;
 
 
 type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
 
 
 #[derive(Debug, Clone, ArgParser)]
-pub struct Args;
+pub struct Args {
+    /// Overrides the last loaded file
+    #[arg(long, short)]
+    path: Option<PathBuf>,
+}
 
 
 #[derive(Debug, Clone)]
@@ -47,8 +49,15 @@ pub enum Message {
 }
 
 
-pub(crate) fn execute(_app_args: &AppArgs, _args: &Args) -> Result<()> {
-    let state = State::load()?;
+pub(crate) fn execute(args: &Args) -> Result<()> {
+    let state = match &args.path {
+        Some(path) => {
+            let mut state = State::default();
+            state.set_savefile_from_path(path)?;
+            state
+        }
+        None => State::load()?,
+    };
 
     let mut terminal = setup()?;
 

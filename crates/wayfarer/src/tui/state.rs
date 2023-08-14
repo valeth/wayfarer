@@ -1,6 +1,7 @@
 use std::fs::{self, create_dir_all, read_to_string};
 use std::io::Write;
 use std::os::unix::prelude::OsStrExt;
+use std::path::Path;
 
 use anyhow::Result;
 use jrny_save::Savefile;
@@ -12,15 +13,6 @@ use crate::watcher::FileWatcher;
 use crate::DIRS;
 
 
-pub struct State {
-    savefile: Option<Savefile>,
-    pub mode: Mode,
-    pub file_select: Input,
-    #[cfg(feature = "watch")]
-    file_watcher: Option<FileWatcher>,
-}
-
-
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum Mode {
     #[default]
@@ -30,6 +22,17 @@ pub enum Mode {
 
     SelectFile,
 }
+
+
+#[derive(Default)]
+pub struct State {
+    savefile: Option<Savefile>,
+    pub mode: Mode,
+    pub file_select: Input,
+    #[cfg(feature = "watch")]
+    file_watcher: Option<FileWatcher>,
+}
+
 
 impl State {
     pub fn load() -> Result<Self> {
@@ -52,6 +55,16 @@ impl State {
 
     pub fn savefile(&self) -> Option<&Savefile> {
         self.savefile.as_ref()
+    }
+
+    pub fn set_savefile_from_path<P>(&mut self, path: P) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
+        let savefile = Savefile::from_path(path)?;
+        self.savefile = Some(savefile);
+
+        Ok(())
     }
 
     pub fn set_selected_as_active_savefile(&mut self) -> Result<()> {

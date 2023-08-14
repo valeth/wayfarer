@@ -13,11 +13,11 @@ cargo install --git https://github.com/valeth/wayfarer
 Make sure the path cargo installs to is in your system's `PATH`.
 
 ```sh
-wayfarer tui
+wayfarer
 
-# or
+# of if you want to override the last remembered file
 
-wayfarer show <path-to-savefile>
+wayfarer --path <path-to-savefile>
 ```
 
 
