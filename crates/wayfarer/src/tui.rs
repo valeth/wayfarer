@@ -43,7 +43,6 @@ pub enum Message {
     #[cfg(feature = "watch")]
     ToggleFileWatch,
 
-    #[cfg(feature = "watch")]
     ReloadFile,
 }
 
@@ -139,7 +138,6 @@ fn handle_message(
             }
         }
 
-        #[cfg(feature = "watch")]
         Message::ReloadFile => {
             state.reload_active_savefile()?;
         }

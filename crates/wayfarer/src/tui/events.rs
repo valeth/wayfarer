@@ -73,6 +73,10 @@ fn handle_keyboard_input(
             msg_tx.send(Message::SetMode(Mode::SelectFile))?;
         }
 
+        (Mode::Normal, KeyCode::Char('r')) => {
+            msg_tx.send(Message::ReloadFile)?;
+        }
+
         #[cfg(feature = "watch")]
         (Mode::Normal, KeyCode::Char('w')) => {
             msg_tx.send(Message::ToggleFileWatch)?;

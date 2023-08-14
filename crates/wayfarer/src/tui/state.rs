@@ -4,6 +4,7 @@ use std::os::unix::prelude::OsStrExt;
 
 use anyhow::Result;
 use jrny_save::Savefile;
+use tracing::debug;
 use tui_input::Input;
 
 #[cfg(feature = "watch")]
@@ -92,10 +93,7 @@ impl State {
         self.file_watcher = None;
     }
 
-    #[cfg(feature = "watch")]
     pub fn reload_active_savefile(&mut self) -> Result<()> {
-        use tracing::debug;
-
         if let Some(cur_savefile) = &self.savefile {
             debug!("Reloading file");
             let new_savefile = Savefile::from_path(&cur_savefile.path)?;
