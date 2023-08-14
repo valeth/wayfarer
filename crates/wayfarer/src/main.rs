@@ -1,19 +1,27 @@
 mod edit;
 mod show;
-mod state;
 mod tui;
 mod watcher;
 
 
+use std::fs::create_dir_all;
+use std::path::PathBuf;
+
 use anyhow::Result;
 use clap::Parser as ArgParser;
+use directories::ProjectDirs;
 use tracing::Level as TracingLevel;
 use tracing_appender::rolling;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use crate::state::logs_dir;
+
+lazy_static::lazy_static! {
+    pub static ref DIRS: ProjectDirs = {
+        ProjectDirs::from("", "valeth", "wayfarer").unwrap()
+    };
+}
 
 
 #[derive(Debug, ArgParser)]
@@ -79,4 +87,18 @@ fn tracing_setup() -> Result<()> {
         .try_init()?;
 
     Ok(())
+}
+
+
+fn logs_dir() -> Result<PathBuf> {
+    let log_root_path = DIRS
+        .state_dir()
+        .unwrap_or_else(|| DIRS.cache_dir())
+        .join("logs");
+
+    if !log_root_path.exists() {
+        create_dir_all(&log_root_path)?;
+    }
+
+    Ok(log_root_path)
 }

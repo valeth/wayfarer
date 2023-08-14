@@ -18,20 +18,20 @@ pub fn render(state: &State, mut frame: &mut Frame, area: Rect) {
         }
 
         #[cfg(feature = "watch")]
-        Mode::Normal if state.file_watcher.is_some() && state.persistent.savefile.is_some() => {
-            let savefile = state.persistent.savefile.as_ref().unwrap();
-            let text = format!("Watching file: {}", savefile.path.display());
-            let status = Paragraph::new(text).block(status_block);
-            frame.render_widget(status, area);
+        Mode::Normal if state.is_watching_file() => {
+            if let Some(savefile) = state.savefile() {
+                let text = format!("Watching file: {}", savefile.path.display());
+                let status = Paragraph::new(text).block(status_block);
+                frame.render_widget(status, area);
+            }
         }
 
-        Mode::Normal if state.persistent.savefile.is_none() => (),
-
         Mode::Normal => {
-            let savefile = state.persistent.savefile.as_ref().unwrap();
-            let text = format!("Showing file: {}", savefile.path.display());
-            let status = Paragraph::new(text).block(status_block);
-            frame.render_widget(status, area);
+            if let Some(savefile) = state.savefile() {
+                let text = format!("Showing file: {}", savefile.path.display());
+                let status = Paragraph::new(text).block(status_block);
+                frame.render_widget(status, area);
+            }
         }
 
         Mode::SelectFile => render_file_select(&state, &mut frame, status_block, area),

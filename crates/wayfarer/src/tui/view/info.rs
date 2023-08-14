@@ -7,7 +7,7 @@ use crate::tui::State;
 
 
 pub fn render(state: &mut State, frame: &mut Frame, area: Rect) {
-    match &state.persistent.savefile {
+    match state.savefile() {
         Some(savefile) => render_info(savefile, frame, area),
         None => render_no_active_file(frame, area),
     }

@@ -1,6 +1,7 @@
 #![cfg(feature = "tui")]
 
 mod events;
+mod state;
 mod view;
 
 
@@ -16,11 +17,8 @@ use crossterm::terminal::{
 };
 use ratatui::backend::CrosstermBackend;
 use tracing::{debug, error, info};
-use tui_input::Input;
 
-use crate::state::PersistentState;
-#[cfg(feature = "watch")]
-use crate::watcher::FileWatcher;
+use self::state::{Mode, State};
 use crate::Args as AppArgs;
 
 
@@ -29,15 +27,6 @@ type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
 
 #[derive(Debug, Clone, ArgParser)]
 pub struct Args;
-
-
-pub struct State {
-    persistent: PersistentState,
-    mode: Mode,
-    file_select: Input,
-    #[cfg(feature = "watch")]
-    file_watcher: Option<FileWatcher>,
-}
 
 
 #[derive(Debug, Clone)]
@@ -57,29 +46,10 @@ pub enum Message {
 }
 
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub enum Mode {
-    #[default]
-    Normal,
-
-    ShowError(String),
-
-    SelectFile,
-}
-
-
 pub(crate) fn execute(_app_args: &AppArgs, _args: &Args) -> Result<()> {
-    let persistent = PersistentState::load()?;
+    let state = State::load()?;
 
     let mut terminal = setup()?;
-
-    let state = State {
-        persistent,
-        mode: Mode::default(),
-        file_select: Input::default(),
-        #[cfg(feature = "watch")]
-        file_watcher: None,
-    };
 
     run(&mut terminal, state)?;
 
@@ -137,45 +107,39 @@ fn handle_message(
 
         Message::LoadFile => {
             let file_path = state.file_select.value();
-
             info!("Loading file {}", file_path);
 
-            state.persistent.set_active_savefile_path(file_path)?;
+            state.set_selected_as_active_savefile()?;
 
             #[cfg(feature = "watch")]
-            if state.file_watcher.is_some() {
-                state.file_watcher = None;
+            if state.is_watching_file() {
+                state.reset_file_watcher();
             }
 
             msg_tx.send(Message::SetMode(Mode::Normal))?;
         }
 
         #[cfg(feature = "watch")]
-        Message::ToggleFileWatch if state.persistent.savefile.is_some() => {
-            let savefile = state.persistent.savefile.as_ref().unwrap();
+        Message::ToggleFileWatch => {
+            if let Some(savefile) = state.savefile() {
+                if state.is_watching_file() {
+                    let evq_tx = msg_tx.clone();
+                    let callback = move || {
+                        evq_tx.send(Message::ReloadFile).unwrap();
+                    };
 
-            if state.file_watcher.is_none() {
-                let evq_tx = msg_tx.clone();
-                let callback = move || {
-                    evq_tx.send(Message::ReloadFile).unwrap();
-                };
-
-                info!("Starting file watcher on {}", savefile.path.display());
-
-                let file_watcher = FileWatcher::new(&savefile.path, callback);
-                state.file_watcher = Some(file_watcher);
-            } else {
-                info!("Stopped file watcher on {}", savefile.path.display());
-
-                state.file_watcher = None;
+                    info!("Starting file watcher on {}", savefile.path.display());
+                    state.enable_file_watcher(callback);
+                } else {
+                    info!("Stopped file watcher on {}", savefile.path.display());
+                    state.reset_file_watcher();
+                }
             }
         }
 
         #[cfg(feature = "watch")]
-        Message::ReloadFile if state.persistent.savefile.is_some() => {
-            debug!("Reloading file");
-
-            state.persistent.reload_active_savefile()?;
+        Message::ReloadFile => {
+            state.reload_active_savefile()?;
         }
 
         _ => (),
