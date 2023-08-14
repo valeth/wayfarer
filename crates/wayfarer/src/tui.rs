@@ -18,6 +18,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::{Block, Borders, Cell, Padding, Paragraph, Row, Table};
+use tracing::{debug, error, info};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
@@ -93,6 +94,7 @@ pub(crate) fn execute(_app_args: &AppArgs, _args: &Args) -> Result<()> {
 }
 
 
+#[tracing::instrument(skip_all)]
 #[cfg_attr(not(feature = "watch"), allow(unused_mut))]
 fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
     let (mut msg_tx, msg_rx) = mpsc::channel::<Message>();
@@ -105,9 +107,13 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
         handle_events(&mut msg_tx, &mut state)?;
 
         match msg_rx.try_recv() {
-            Ok(Message::Exit) => break,
+            Ok(Message::Exit) => {
+                debug!("Exiting...");
+                break;
+            }
             Ok(message) => {
                 if let Err(err) = handle_message(&mut state, &mut msg_tx, message) {
+                    error!(message = ?err);
                     state.mode = Mode::ShowError(format!("{}", err));
                 }
             }
@@ -120,6 +126,7 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
 }
 
 
+#[tracing::instrument(skip(state, msg_tx))]
 #[cfg_attr(not(feature = "watch"), allow(unused_variables))]
 fn handle_message(
     state: &mut State,
@@ -128,13 +135,17 @@ fn handle_message(
 ) -> Result<()> {
     match message {
         Message::SetMode(mode) => {
+            debug!("Setting mode to {:?}", mode);
+
             state.mode = mode;
         }
 
         Message::LoadFile => {
-            state
-                .persistent
-                .set_active_savefile_path(state.file_select.value())?;
+            let file_path = state.file_select.value();
+
+            info!("Loading file {}", file_path);
+
+            state.persistent.set_active_savefile_path(file_path)?;
 
             #[cfg(feature = "watch")]
             if state.file_watcher.is_some() {
@@ -153,15 +164,22 @@ fn handle_message(
                 let callback = move || {
                     evq_tx.send(Message::ReloadFile).unwrap();
                 };
+
+                info!("Starting file watcher on {}", savefile.path.display());
+
                 let file_watcher = FileWatcher::new(&savefile.path, callback);
                 state.file_watcher = Some(file_watcher);
             } else {
+                info!("Stopped file watcher on {}", savefile.path.display());
+
                 state.file_watcher = None;
             }
         }
 
         #[cfg(feature = "watch")]
         Message::ReloadFile if state.persistent.savefile.is_some() => {
+            debug!("Reloading file");
+
             state.persistent.reload_active_savefile()?;
         }
 
@@ -186,6 +204,7 @@ fn handle_events(event_queue: &mut mpsc::Sender<Message>, state: &mut State) -> 
 }
 
 
+#[tracing::instrument(skip(msg_tx, state))]
 fn handle_keyboard_input(
     key: KeyEvent,
     msg_tx: &mut mpsc::Sender<Message>,
@@ -235,6 +254,7 @@ fn handle_keyboard_input(
 fn setup() -> Result<Terminal> {
     let mut stdout = io::stdout();
 
+    debug!("Enabling terminal raw mode");
     enable_raw_mode()?;
 
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -244,6 +264,7 @@ fn setup() -> Result<Terminal> {
 
 
 fn reset(mut terminal: Terminal) -> Result<()> {
+    debug!("Disabling terminal raw mode");
     disable_raw_mode()?;
 
     execute!(
