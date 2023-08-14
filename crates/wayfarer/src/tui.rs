@@ -10,7 +10,9 @@ use std::sync::mpsc::{self, TryRecvError};
 
 use anyhow::Result;
 use clap::Parser as ArgParser;
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use crossterm::event::{
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -155,7 +157,12 @@ fn setup() -> Result<Terminal> {
     debug!("Enabling terminal raw mode");
     enable_raw_mode()?;
 
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(
+        stdout,
+        EnterAlternateScreen,
+        EnableMouseCapture,
+        EnableBracketedPaste
+    )?;
 
     Ok(Terminal::new(CrosstermBackend::new(stdout))?)
 }
@@ -168,7 +175,8 @@ fn reset(mut terminal: Terminal) -> Result<()> {
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
-        DisableMouseCapture
+        DisableMouseCapture,
+        DisableBracketedPaste
     )?;
 
     terminal.show_cursor()?;

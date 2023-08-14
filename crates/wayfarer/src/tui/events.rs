@@ -3,7 +3,9 @@ use std::time::Duration;
 
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use tracing::debug;
 use tui_input::backend::crossterm::EventHandler;
+use tui_input::Input;
 
 use super::{Message, Mode, State};
 
@@ -15,9 +17,23 @@ pub fn handle(event_queue: &mut mpsc::Sender<Message>, state: &mut State) -> Res
 
     match event::read()? {
         Event::Key(key) => handle_keyboard_input(key, event_queue, state)?,
+        Event::Paste(val) => handle_paste(val, state)?,
         _ => return Ok(()),
     }
 
+    Ok(())
+}
+
+
+fn handle_paste(value: String, state: &mut State) -> Result<()> {
+    match &state.mode {
+        Mode::SelectFile => {
+            debug!("Received pasted content: {:?}", value);
+            let combined = format!("{}{}", state.file_select.value(), value);
+            state.file_select = Input::new(combined);
+        }
+        _ => (),
+    }
     Ok(())
 }
 
