@@ -30,3 +30,4 @@ wayfarer --path <path-to-savefile>
 | q        | Normal | Quits the application                               |
 | o        | Normal | Open a new file                                     |
 | w        | Normal | Toggle file watcher mode (requires "watch" feature) |
+| H,J,K,L  | Edit   | Move between sections                               |

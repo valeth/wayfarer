@@ -18,15 +18,28 @@ pub enum Mode {
     #[default]
     Normal,
 
+    Edit,
+
     ShowError(String),
 
     SelectFile,
 }
 
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Section {
+    #[default]
+    General,
+    Glyphs,
+    Murals,
+    Companions,
+}
+
+
 #[derive(Default)]
 pub struct State {
     savefile: Option<Savefile>,
+    pub active_section: Section,
     pub mode: Mode,
     pub file_select: Input,
     #[cfg(feature = "watch")]
@@ -46,10 +59,7 @@ impl State {
 
         Ok(Self {
             savefile,
-            mode: Mode::default(),
-            file_select: Input::default(),
-            #[cfg(feature = "watch")]
-            file_watcher: None,
+            ..Default::default()
         })
     }
 

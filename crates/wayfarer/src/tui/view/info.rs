@@ -1,14 +1,16 @@
 use jrny_save::{Savefile, LEVEL_NAMES};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::style::Style;
 use ratatui::widgets::{Block, Borders, Cell, Padding, Paragraph, Row, Table};
 
+use crate::tui::state::{Mode, Section};
 use crate::tui::view::Frame;
 use crate::tui::State;
 
 
 pub fn render(state: &mut State, frame: &mut Frame, area: Rect) {
     match state.savefile() {
-        Some(savefile) => render_info(savefile, frame, area),
+        Some(savefile) => render_info(savefile, state, frame, area),
         None => render_no_active_file(frame, area),
     }
 }
@@ -26,7 +28,7 @@ fn render_no_active_file(frame: &mut Frame, area: Rect) {
 }
 
 
-fn render_info(savefile: &Savefile, mut frame: &mut Frame, area: Rect) {
+fn render_info(savefile: &Savefile, state: &State, mut frame: &mut Frame, area: Rect) {
     let columns = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -46,18 +48,23 @@ fn render_info(savefile: &Savefile, mut frame: &mut Frame, area: Rect) {
         .constraints([Constraint::Ratio(10, 10)])
         .split(columns[1]);
 
-
-    render_stats(&savefile, &mut frame, left_column[0]);
-    render_glyphs(&savefile, &mut frame, left_column[1]);
-    render_murals(&savefile, &mut frame, left_column[2]);
-
-    render_companions(&savefile, &mut frame, right_column[0]);
+    render_stats(&savefile, state, &mut frame, left_column[0]);
+    render_glyphs(&savefile, state, &mut frame, left_column[1]);
+    render_murals(&savefile, state, &mut frame, left_column[2]);
+    render_companions(&savefile, state, &mut frame, right_column[0]);
 }
 
 
-fn render_stats<'a>(savefile: &Savefile, frame: &mut Frame, area: Rect) {
+fn render_stats<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area: Rect) {
+    let border_style = if state.active_section == Section::General && state.mode == Mode::Edit {
+        Style::default().fg(ratatui::style::Color::Blue)
+    } else {
+        Style::default()
+    };
+
     let stats_section_block = Block::default()
         .padding(Padding::new(2, 2, 1, 1))
+        .border_style(border_style)
         .borders(Borders::ALL);
 
     let layout = Layout::default()
@@ -107,10 +114,17 @@ fn render_stats<'a>(savefile: &Savefile, frame: &mut Frame, area: Rect) {
 }
 
 
-fn render_companions<'a>(savefile: &Savefile, frame: &mut Frame, area: Rect) {
+fn render_companions<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area: Rect) {
+    let border_style = if state.active_section == Section::Companions && state.mode == Mode::Edit {
+        Style::default().fg(ratatui::style::Color::Blue)
+    } else {
+        Style::default()
+    };
+
     let companions_block = Block::default()
         .title("Companions")
         .padding(Padding::new(2, 2, 1, 1))
+        .border_style(border_style)
         .borders(Borders::ALL);
 
     let layout = Layout::default()
@@ -150,12 +164,19 @@ fn render_companions<'a>(savefile: &Savefile, frame: &mut Frame, area: Rect) {
 }
 
 
-fn render_glyphs<'a>(savefile: &Savefile, frame: &mut Frame, area: Rect) {
+fn render_glyphs<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area: Rect) {
     const FOUND_SIGN: &str = "◆";
     const NOT_FOUND_SIGN: &str = "◇";
 
+    let border_style = if state.active_section == Section::Glyphs && state.mode == Mode::Edit {
+        Style::default().fg(ratatui::style::Color::Blue)
+    } else {
+        Style::default()
+    };
+
     let block = Block::default()
         .title("Glyphs")
+        .border_style(border_style)
         .borders(Borders::ALL)
         .padding(Padding::new(2, 2, 1, 1));
 
@@ -183,12 +204,19 @@ fn render_glyphs<'a>(savefile: &Savefile, frame: &mut Frame, area: Rect) {
 }
 
 
-fn render_murals<'a>(savefile: &Savefile, frame: &mut Frame, area: Rect) {
+fn render_murals<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area: Rect) {
     const FOUND_SIGN: &str = "▾";
     const NOT_FOUND_SIGN: &str = "▿";
 
+    let border_style = if state.active_section == Section::Murals && state.mode == Mode::Edit {
+        Style::default().fg(ratatui::style::Color::Blue)
+    } else {
+        Style::default()
+    };
+
     let block = Block::default()
         .title("Murals")
+        .border_style(border_style)
         .borders(Borders::ALL)
         .padding(Padding::new(2, 2, 1, 1));
 

@@ -77,6 +77,26 @@ fn handle_keyboard_input(
             msg_tx.send(Message::ReloadFile)?;
         }
 
+        (Mode::Edit, KeyCode::Char('H')) => {
+            msg_tx.send(Message::MoveSectionLeft)?;
+        }
+
+        (Mode::Edit, KeyCode::Char('J')) => {
+            msg_tx.send(Message::MoveSectionDown)?;
+        }
+
+        (Mode::Edit, KeyCode::Char('K')) => {
+            msg_tx.send(Message::MoveSectionUp)?;
+        }
+
+        (Mode::Edit, KeyCode::Char('L')) => {
+            msg_tx.send(Message::MoveSectionRight)?;
+        }
+
+        (Mode::Normal, KeyCode::Char('e')) => {
+            msg_tx.send(Message::SetMode(Mode::Edit))?;
+        }
+
         #[cfg(feature = "watch")]
         (Mode::Normal, KeyCode::Char('w')) => {
             msg_tx.send(Message::ToggleFileWatch)?;

@@ -19,7 +19,7 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use tracing::{debug, error, info};
 
-use self::state::{Mode, State};
+use self::state::{Mode, Section, State};
 
 
 type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
@@ -46,6 +46,14 @@ pub enum Message {
     ToggleFileWatch,
 
     ReloadFile,
+
+    MoveSectionLeft,
+
+    MoveSectionDown,
+
+    MoveSectionUp,
+
+    MoveSectionRight,
 }
 
 
@@ -149,6 +157,38 @@ fn handle_message(
 
         Message::ReloadFile => {
             state.reload_active_savefile()?;
+        }
+
+        Message::MoveSectionLeft => {
+            state.active_section = match state.active_section {
+                Section::Companions => Section::General,
+                _ => Section::Companions,
+            };
+        }
+
+        Message::MoveSectionRight => {
+            state.active_section = match state.active_section {
+                Section::Companions => Section::General,
+                _ => Section::Companions,
+            }
+        }
+
+        Message::MoveSectionDown => {
+            state.active_section = match state.active_section {
+                Section::General => Section::Glyphs,
+                Section::Glyphs => Section::Murals,
+                Section::Murals => Section::General,
+                section => section,
+            };
+        }
+
+        Message::MoveSectionUp => {
+            state.active_section = match state.active_section {
+                Section::General => Section::Murals,
+                Section::Glyphs => Section::General,
+                Section::Murals => Section::Glyphs,
+                section => section,
+            }
         }
 
         _ => (),

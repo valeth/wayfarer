@@ -17,6 +17,14 @@ pub fn render(state: &State, mut frame: &mut Frame, area: Rect) {
             frame.render_widget(error_msg, area);
         }
 
+        Mode::Edit => {
+            if let Some(savefile) = state.savefile() {
+                let text = format!("Editing file: {}", savefile.path.display());
+                let status = Paragraph::new(text).block(status_block);
+                frame.render_widget(status, area);
+            }
+        }
+
         #[cfg(feature = "watch")]
         Mode::Normal if state.is_watching_file() => {
             if let Some(savefile) = state.savefile() {
