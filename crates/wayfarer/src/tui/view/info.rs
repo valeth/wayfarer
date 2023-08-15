@@ -1,6 +1,6 @@
-use jrny_save::{Savefile, LEVEL_NAMES};
+use jrny_save::LEVEL_NAMES;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Cell, Padding, Paragraph, Row, Table};
 
 use crate::tui::state::{Mode, Section};
@@ -8,10 +8,16 @@ use crate::tui::view::Frame;
 use crate::tui::State;
 
 
+pub const STATS_TABLE_RANGE: (usize, usize) = (0, 9);
+pub const GLYPHS_TABLE_RANGE: (usize, usize) = (0, 5);
+pub const MURALS_TABLE_RANGE: (usize, usize) = (0, 6);
+
+
 pub fn render(state: &mut State, frame: &mut Frame, area: Rect) {
-    match state.savefile() {
-        Some(savefile) => render_info(savefile, state, frame, area),
-        None => render_no_active_file(frame, area),
+    if state.is_savefile_loaded() {
+        render_info(state, frame, area);
+    } else {
+        render_no_active_file(frame, area);
     }
 }
 
@@ -28,7 +34,7 @@ fn render_no_active_file(frame: &mut Frame, area: Rect) {
 }
 
 
-fn render_info(savefile: &Savefile, state: &State, mut frame: &mut Frame, area: Rect) {
+fn render_info(state: &mut State, mut frame: &mut Frame, area: Rect) {
     let columns = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -48,16 +54,22 @@ fn render_info(savefile: &Savefile, state: &State, mut frame: &mut Frame, area: 
         .constraints([Constraint::Ratio(10, 10)])
         .split(columns[1]);
 
-    render_stats(&savefile, state, &mut frame, left_column[0]);
-    render_glyphs(&savefile, state, &mut frame, left_column[1]);
-    render_murals(&savefile, state, &mut frame, left_column[2]);
-    render_companions(&savefile, state, &mut frame, right_column[0]);
+    render_stats(state, &mut frame, left_column[0]);
+    render_glyphs(state, &mut frame, left_column[1]);
+    render_murals(state, &mut frame, left_column[2]);
+    render_companions(state, &mut frame, right_column[0]);
 }
 
 
-fn render_stats<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area: Rect) {
-    let border_style = if state.active_section == Section::General && state.mode == Mode::Edit {
-        Style::default().fg(ratatui::style::Color::Blue)
+fn render_stats<'a>(state: &mut State, frame: &mut Frame, area: Rect) {
+    let Some(savefile) = state.savefile() else {
+        return
+    };
+
+    let is_selected = state.active_section == Section::General && state.mode == Mode::Edit;
+
+    let border_style = if is_selected {
+        Style::default().fg(Color::Blue)
     } else {
         Style::default()
     };
@@ -73,6 +85,12 @@ fn render_stats<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area:
         .split(stats_section_block.inner(area));
 
     let stats_block = Block::default().title("Stats");
+
+    let table_highlight = if is_selected {
+        Style::default().fg(Color::Blue)
+    } else {
+        Style::default()
+    };
 
     let table = Table::new([
         Row::new([
@@ -101,6 +119,7 @@ fn render_stats<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area:
         Row::new(["Robe Tier".to_string(), savefile.robe_tier().to_string()]),
         Row::new(["Last Played".to_string(), savefile.last_played.to_string()]),
     ])
+    .highlight_style(table_highlight)
     .widths(&[Constraint::Ratio(1, 3), Constraint::Ratio(2, 3)])
     .block(stats_block);
 
@@ -110,12 +129,18 @@ fn render_stats<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area:
 
     frame.render_widget(stats_section_block, area);
     frame.render_widget(cur_symbol, layout[0]);
-    frame.render_widget(table, layout[1]);
+    frame.render_stateful_widget(table, layout[1], &mut state.stats_table);
 }
 
 
-fn render_companions<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area: Rect) {
-    let border_style = if state.active_section == Section::Companions && state.mode == Mode::Edit {
+fn render_companions<'a>(state: &State, frame: &mut Frame, area: Rect) {
+    let Some(savefile) = state.savefile() else {
+        return
+    };
+
+    let is_selected = state.active_section == Section::Companions && state.mode == Mode::Edit;
+
+    let border_style = if is_selected {
         Style::default().fg(ratatui::style::Color::Blue)
     } else {
         Style::default()
@@ -164,12 +189,19 @@ fn render_companions<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, 
 }
 
 
-fn render_glyphs<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area: Rect) {
+fn render_glyphs<'a>(state: &mut State, frame: &mut Frame, area: Rect) {
     const FOUND_SIGN: &str = "◆";
     const NOT_FOUND_SIGN: &str = "◇";
 
-    let border_style = if state.active_section == Section::Glyphs && state.mode == Mode::Edit {
-        Style::default().fg(ratatui::style::Color::Blue)
+    let Some(savefile) = state.savefile() else {
+        return
+    };
+
+    let is_selected = state.active_section == Section::Glyphs && state.mode == Mode::Edit;
+
+
+    let border_style = if is_selected {
+        Style::default().fg(Color::Blue)
     } else {
         Style::default()
     };
@@ -179,6 +211,12 @@ fn render_glyphs<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area
         .border_style(border_style)
         .borders(Borders::ALL)
         .padding(Padding::new(2, 2, 1, 1));
+
+    let table_highlight = if is_selected {
+        Style::default().fg(Color::Blue)
+    } else {
+        Style::default()
+    };
 
     let table = Table::new(savefile.glyphs.all().map(|(level_number, status)| {
         let status = status
@@ -198,18 +236,25 @@ fn render_glyphs<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area
         Constraint::Length(3),
     ])
     .column_spacing(1)
+    .highlight_style(table_highlight)
     .block(block);
 
-    frame.render_widget(table, area);
+    frame.render_stateful_widget(table, area, &mut state.glyphs_table);
 }
 
 
-fn render_murals<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area: Rect) {
+fn render_murals<'a>(state: &mut State, frame: &mut Frame, area: Rect) {
     const FOUND_SIGN: &str = "▾";
     const NOT_FOUND_SIGN: &str = "▿";
 
-    let border_style = if state.active_section == Section::Murals && state.mode == Mode::Edit {
-        Style::default().fg(ratatui::style::Color::Blue)
+    let Some(savefile) = state.savefile() else {
+        return
+    };
+
+    let is_selected = state.active_section == Section::Murals && state.mode == Mode::Edit;
+
+    let border_style = if is_selected {
+        Style::default().fg(Color::Blue)
     } else {
         Style::default()
     };
@@ -219,6 +264,12 @@ fn render_murals<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area
         .border_style(border_style)
         .borders(Borders::ALL)
         .padding(Padding::new(2, 2, 1, 1));
+
+    let table_highlight = if is_selected {
+        Style::default().fg(Color::Blue)
+    } else {
+        Style::default()
+    };
 
     let table = Table::new(savefile.murals.all().map(|(level_number, status)| {
         let status = status
@@ -238,7 +289,8 @@ fn render_murals<'a>(savefile: &Savefile, state: &State, frame: &mut Frame, area
         Constraint::Length(3),
     ])
     .column_spacing(1)
+    .highlight_style(table_highlight)
     .block(block);
 
-    frame.render_widget(table, area);
+    frame.render_stateful_widget(table, area, &mut state.murals_table);
 }

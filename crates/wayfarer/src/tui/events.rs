@@ -7,7 +7,7 @@ use tracing::debug;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
-use super::{Message, Mode, State};
+use super::{Direction, Message, Mode, State};
 
 
 pub fn handle(event_queue: &mut mpsc::Sender<Message>, state: &mut State) -> Result<()> {
@@ -78,19 +78,35 @@ fn handle_keyboard_input(
         }
 
         (Mode::Edit, KeyCode::Char('H')) => {
-            msg_tx.send(Message::MoveSectionLeft)?;
+            msg_tx.send(Message::MoveSection(Direction::Left))?;
         }
 
         (Mode::Edit, KeyCode::Char('J')) => {
-            msg_tx.send(Message::MoveSectionDown)?;
+            msg_tx.send(Message::MoveSection(Direction::Down))?;
         }
 
         (Mode::Edit, KeyCode::Char('K')) => {
-            msg_tx.send(Message::MoveSectionUp)?;
+            msg_tx.send(Message::MoveSection(Direction::Up))?;
         }
 
         (Mode::Edit, KeyCode::Char('L')) => {
-            msg_tx.send(Message::MoveSectionRight)?;
+            msg_tx.send(Message::MoveSection(Direction::Right))?;
+        }
+
+        (Mode::Edit, KeyCode::Char('h')) => {
+            msg_tx.send(Message::MoveCur(Direction::Left))?;
+        }
+
+        (Mode::Edit, KeyCode::Char('j')) => {
+            msg_tx.send(Message::MoveCur(Direction::Down))?;
+        }
+
+        (Mode::Edit, KeyCode::Char('k')) => {
+            msg_tx.send(Message::MoveCur(Direction::Up))?;
+        }
+
+        (Mode::Edit, KeyCode::Char('l')) => {
+            msg_tx.send(Message::MoveCur(Direction::Right))?;
         }
 
         (Mode::Normal, KeyCode::Char('e')) => {

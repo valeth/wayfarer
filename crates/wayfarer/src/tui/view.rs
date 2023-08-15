@@ -1,5 +1,5 @@
-mod info;
-mod status_bar;
+pub mod info;
+pub mod status_bar;
 
 
 use std::io::Stdout;

@@ -19,7 +19,7 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use tracing::{debug, error, info};
 
-use self::state::{Mode, Section, State};
+use self::state::{Mode, State};
 
 
 type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
@@ -30,6 +30,15 @@ pub struct Args {
     /// Overrides the last loaded file
     #[arg(long, short)]
     path: Option<PathBuf>,
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
 }
 
 
@@ -47,13 +56,9 @@ pub enum Message {
 
     ReloadFile,
 
-    MoveSectionLeft,
+    MoveSection(Direction),
 
-    MoveSectionDown,
-
-    MoveSectionUp,
-
-    MoveSectionRight,
+    MoveCur(Direction),
 }
 
 
@@ -117,6 +122,10 @@ fn handle_message(
     message: Message,
 ) -> Result<()> {
     match message {
+        Message::SetMode(Mode::Edit) => {
+            state.edit_current_file();
+        }
+
         Message::SetMode(mode) => {
             debug!("Setting mode to {:?}", mode);
 
@@ -159,36 +168,12 @@ fn handle_message(
             state.reload_active_savefile()?;
         }
 
-        Message::MoveSectionLeft => {
-            state.active_section = match state.active_section {
-                Section::Companions => Section::General,
-                _ => Section::Companions,
-            };
+        Message::MoveSection(direction) => {
+            state.move_section(direction);
         }
 
-        Message::MoveSectionRight => {
-            state.active_section = match state.active_section {
-                Section::Companions => Section::General,
-                _ => Section::Companions,
-            }
-        }
-
-        Message::MoveSectionDown => {
-            state.active_section = match state.active_section {
-                Section::General => Section::Glyphs,
-                Section::Glyphs => Section::Murals,
-                Section::Murals => Section::General,
-                section => section,
-            };
-        }
-
-        Message::MoveSectionUp => {
-            state.active_section = match state.active_section {
-                Section::General => Section::Murals,
-                Section::Glyphs => Section::General,
-                Section::Murals => Section::Glyphs,
-                section => section,
-            }
+        Message::MoveCur(direction) => {
+            state.move_in_current_section(direction);
         }
 
         _ => (),

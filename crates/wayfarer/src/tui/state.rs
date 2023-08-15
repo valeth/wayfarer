@@ -5,9 +5,12 @@ use std::path::Path;
 
 use anyhow::Result;
 use jrny_save::Savefile;
+use ratatui::widgets::TableState;
 use tracing::debug;
 use tui_input::Input;
 
+use super::view::info::{GLYPHS_TABLE_RANGE, MURALS_TABLE_RANGE, STATS_TABLE_RANGE};
+use super::Direction;
 #[cfg(feature = "watch")]
 use crate::watcher::FileWatcher;
 use crate::DIRS;
@@ -39,7 +42,11 @@ pub enum Section {
 #[derive(Default)]
 pub struct State {
     savefile: Option<Savefile>,
+    original_file: Option<Savefile>,
     pub active_section: Section,
+    pub stats_table: TableState,
+    pub glyphs_table: TableState,
+    pub murals_table: TableState,
     pub mode: Mode,
     pub file_select: Input,
     #[cfg(feature = "watch")]
@@ -95,6 +102,16 @@ impl State {
         Ok(())
     }
 
+    pub fn edit_current_file(&mut self) {
+        self.original_file = self.savefile.clone();
+        self.select_section(self.active_section);
+        self.mode = Mode::Edit;
+    }
+
+    pub fn is_savefile_loaded(&self) -> bool {
+        self.savefile().is_some()
+    }
+
     #[cfg(feature = "watch")]
     pub fn is_watching_file(&self) -> bool {
         self.file_watcher.is_some()
@@ -124,6 +141,69 @@ impl State {
         }
 
         Ok(())
+    }
+
+    pub fn move_section(&mut self, direction: Direction) {
+        let next_section = match (direction, self.active_section) {
+            (Direction::Left, Section::Companions) => Section::General,
+            (Direction::Left, _) => Section::Companions,
+            (Direction::Right, Section::Companions) => Section::General,
+            (Direction::Right, _) => Section::Companions,
+            (Direction::Down, Section::General) => Section::Glyphs,
+            (Direction::Down, Section::Glyphs) => Section::Murals,
+            (Direction::Down, Section::Murals) => Section::General,
+            (Direction::Down, section) => section,
+            (Direction::Up, Section::General) => Section::Murals,
+            (Direction::Up, Section::Murals) => Section::Glyphs,
+            (Direction::Up, Section::Glyphs) => Section::General,
+            (Direction::Up, section) => section,
+        };
+
+        self.select_section(next_section);
+        self.active_section = next_section;
+    }
+
+    fn select_section(&mut self, section: Section) {
+        let table = match section {
+            Section::General => &mut self.stats_table,
+            Section::Glyphs => &mut self.glyphs_table,
+            Section::Murals => &mut self.murals_table,
+            _ => return,
+        };
+
+        if table.selected().is_none() {
+            table.select(Some(0));
+        }
+    }
+
+    pub fn move_in_current_section(&mut self, direction: Direction) {
+        match self.active_section {
+            Section::General => {
+                select_row_in_range(&mut self.stats_table, direction, STATS_TABLE_RANGE)
+            }
+            Section::Glyphs => {
+                select_row_in_range(&mut self.glyphs_table, direction, GLYPHS_TABLE_RANGE)
+            }
+            Section::Murals => {
+                select_row_in_range(&mut self.murals_table, direction, MURALS_TABLE_RANGE)
+            }
+            _ => (),
+        }
+    }
+}
+
+
+fn select_row_in_range(table: &mut TableState, direction: Direction, (min, max): (usize, usize)) {
+    match (direction, table.selected()) {
+        (Direction::Up, Some(i)) if i <= min => (),
+        (Direction::Up, Some(i)) => {
+            table.select(Some(i - 1));
+        }
+        (Direction::Down, Some(i)) if i >= max => (),
+        (Direction::Down, Some(i)) => {
+            table.select(Some(i + 1));
+        }
+        _ => (),
     }
 }
 
