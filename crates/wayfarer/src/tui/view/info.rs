@@ -37,9 +37,9 @@ fn render_info(savefile: &Savefile, state: &State, mut frame: &mut Frame, area: 
     let left_column = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Ratio(6, 12),
-            Constraint::Ratio(3, 12),
-            Constraint::Ratio(3, 12),
+            Constraint::Ratio(1, 3),
+            Constraint::Ratio(1, 3),
+            Constraint::Ratio(1, 3),
         ])
         .split(columns[0]);
 
