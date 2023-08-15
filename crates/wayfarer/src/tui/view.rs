@@ -13,7 +13,7 @@ use super::State;
 type Frame<'a> = ratatui::Frame<'a, CrosstermBackend<Stdout>>;
 
 
-pub fn render(state: &mut State, frame: &mut Frame) {
+pub(super) fn render(state: &mut State, frame: &mut Frame) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(40), Constraint::Length(2)])

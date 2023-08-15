@@ -9,7 +9,9 @@ use ratatui::widgets::TableState;
 use tracing::debug;
 use tui_input::Input;
 
-use super::view::info::{GLYPHS_TABLE_RANGE, MURALS_TABLE_RANGE, STATS_TABLE_RANGE};
+use super::view::info::glyphs::TABLE_RANGE as GLYPHS_TABLE_RANGE;
+use super::view::info::murals::TABLE_RANGE as MURALS_TABLE_RANGE;
+use super::view::info::stats::TABLE_RANGE as STATS_TABLE_RANGE;
 use super::Direction;
 #[cfg(feature = "watch")]
 use crate::watcher::FileWatcher;
