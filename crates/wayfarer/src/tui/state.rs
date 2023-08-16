@@ -6,7 +6,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
-use jrny_save::{RobeColor, Savefile, LEVEL_NAMES};
+use jrny_save::{RobeColor, Savefile};
 use ratatui::widgets::TableState;
 use tracing::{debug, error};
 use tui_input::Input;
@@ -171,13 +171,7 @@ impl State {
             0 => savefile.journey_count = value.parse()?,
             1 => savefile.total_companions_met = value.parse()?,
             2 => savefile.total_collected_symbols = value.parse()?,
-            3 => {
-                let level_id = LEVEL_NAMES
-                    .iter()
-                    .position(|&v| v == value.trim_end())
-                    .context("invalid level name")?;
-                savefile.current_level = level_id as u64;
-            }
+            3 => savefile.current_level.set_by_name(value)?,
             4 => savefile.companions_met = value.parse()?,
             5 => {
                 let new_length = value.parse()?;
@@ -222,14 +216,7 @@ impl State {
             0 => savefile.journey_count += 1,
             1 => savefile.total_companions_met += 1,
             2 => savefile.total_collected_symbols += 1,
-            3 => {
-                let next_level = savefile.current_level + 1;
-                savefile.current_level = if next_level >= LEVEL_NAMES.len() as u64 {
-                    0
-                } else {
-                    savefile.current_level + 1
-                };
-            }
+            3 => savefile.current_level = savefile.current_level.wrapping_next(),
             4 => savefile.companions_met += 1,
             5 => {
                 if savefile.scarf_length < 30 {
@@ -275,14 +262,7 @@ impl State {
                 savefile.total_collected_symbols =
                     savefile.total_collected_symbols.saturating_sub(1)
             }
-            3 => {
-                let next_level: i64 = savefile.current_level as i64 - 1;
-                savefile.current_level = if next_level < 0 {
-                    LEVEL_NAMES.len() as u64 - 1
-                } else {
-                    next_level as u64
-                };
-            }
+            3 => savefile.current_level = savefile.current_level.wrapping_previous(),
             4 => savefile.companions_met = savefile.companions_met.saturating_sub(1),
             5 => {
                 if savefile.scarf_length > 0 {

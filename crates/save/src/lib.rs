@@ -1,5 +1,6 @@
 mod companion;
 mod glyphs;
+mod level;
 mod murals;
 mod symbol;
 mod test;
@@ -12,27 +13,13 @@ use std::path::{Path, PathBuf};
 
 use binrw::{until_eof, BinRead, BinReaderExt, BinWriterExt};
 use chrono::{DateTime, NaiveDateTime, Utc};
+use level::Level;
 use symbol::Symbol;
 
 use crate::companion::{CompanionSymbols, CompanionWithId, Companions};
 use crate::glyphs::Glyphs;
+pub use crate::level::NAMES as LEVEL_NAMES;
 use crate::murals::Murals;
-
-
-pub const LEVEL_NAMES: [&str; 12] = [
-    "Chapter Select",
-    "Broken Bridge",
-    "Pink Desert",
-    "Sunken City",
-    "Underground",
-    "Tower",
-    "Snow",
-    "Paradise",
-    "Credits",
-    "Level Bryan",
-    "Level Matt",
-    "Level Chris",
-];
 
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -45,6 +32,12 @@ pub enum Error {
 
     #[error("Failed to serialize savefile")]
     SerializationFailed(binrw::Error),
+
+    #[error("Level id is out of range")]
+    LevelIdOutOfRange,
+
+    #[error("Level name was not found")]
+    LevelNameNotFound,
 
     #[error("Symbol id is out of range")]
     SymbolIdOutOfRange,
@@ -89,8 +82,7 @@ pub struct Savefile {
     #[br(count = 4)]
     _unknown1: Vec<u8>,
 
-    #[br(assert(current_level <= 12))]
-    pub current_level: u64,
+    pub current_level: Level,
 
     pub total_collected_symbols: u32,
 
@@ -188,10 +180,6 @@ impl Savefile {
                     None
                 }
             })
-    }
-
-    pub fn current_level_name(&self) -> &'static str {
-        LEVEL_NAMES[self.current_level as usize]
     }
 
     pub fn robe_color(&self) -> RobeColor {

@@ -52,7 +52,7 @@ pub(super) fn render<'a>(state: &mut State, frame: &mut Frame, area: Rect) {
             "Total Symbols Collected",
             savefile.total_collected_symbols.to_string(),
         ),
-        ("Current Level", savefile.current_level_name().to_string()),
+        ("Current Level", savefile.current_level.to_string()),
         ("Companions Met", savefile.companions_met.to_string()),
         ("Scarf Length", savefile.scarf_length.to_string()),
         ("Symbol Number", savefile.symbol.as_ref().to_string()),

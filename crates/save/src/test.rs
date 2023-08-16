@@ -18,7 +18,7 @@ fn general_info() {
 
     assert_eq!(savefile.symbol.as_ref(), &7);
     assert_eq!(savefile.scarf_length, 27);
-    assert_eq!(savefile.current_level, 1);
+    assert_eq!(savefile.current_level.as_ref(), &1);
     assert_eq!(savefile.total_collected_symbols, 107);
     assert_eq!(savefile.collected_symbols, 21);
     assert_eq!(savefile.journey_count, 21);

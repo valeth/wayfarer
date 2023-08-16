@@ -59,7 +59,7 @@ fn edit_file(cur_savefile: &Savefile, args: &Args) -> Result<Savefile> {
     }
 
     if let Some(val) = &args.current_level {
-        savefile.current_level = LEVEL_NAMES.iter().position(|&v| v == val).unwrap() as u64;
+        savefile.current_level.set_by_name(&val)?;
     }
 
     if let Some(val) = args.symbol {
