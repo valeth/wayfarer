@@ -46,6 +46,9 @@ pub enum Error {
     #[error("Failed to serialize savefile")]
     SerializationFailed(binrw::Error),
 
+    #[error("Symbol id is out of range")]
+    SymbolIdOutOfRange,
+
     #[error("Failed to read file")]
     FileReadingFailed(io::Error),
 }

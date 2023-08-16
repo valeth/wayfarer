@@ -187,15 +187,7 @@ impl State {
 
                 savefile.scarf_length = new_length;
             }
-            6 => {
-                let next_symbol_id = value.parse()?;
-
-                if next_symbol_id > 20 {
-                    bail!("Symbol id out of range");
-                }
-
-                savefile.symbol.id = next_symbol_id;
-            }
+            6 => savefile.symbol.set_by_id(value.parse()?)?,
             7 => {
                 let new_color = match value {
                     "Red" | "red" => RobeColor::Red,
@@ -244,14 +236,7 @@ impl State {
                     savefile.scarf_length += 1;
                 }
             }
-            6 => {
-                let next_symbol = savefile.symbol.id + 1;
-                savefile.symbol.id = if next_symbol > 20 {
-                    0
-                } else {
-                    savefile.symbol.id + 1
-                };
-            }
+            6 => savefile.symbol = savefile.symbol.wrapping_next(),
             7 => {
                 savefile.set_robe_color(match savefile.robe_color() {
                     RobeColor::Red => RobeColor::White,
@@ -304,14 +289,7 @@ impl State {
                     savefile.scarf_length = savefile.scarf_length.saturating_sub(1);
                 }
             }
-            6 => {
-                let next_symbol = savefile.symbol.id as i32 - 1;
-                savefile.symbol.id = if next_symbol < 0 {
-                    20
-                } else {
-                    next_symbol as u32
-                };
-            }
+            6 => savefile.symbol = savefile.symbol.wrapping_previous(),
             7 => {
                 savefile.set_robe_color(match savefile.robe_color() {
                     RobeColor::Red => RobeColor::White,

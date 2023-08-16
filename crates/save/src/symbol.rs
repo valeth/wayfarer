@@ -3,7 +3,10 @@ use core::fmt;
 use binrw::{BinRead, BinWrite};
 use substring::Substring;
 
+use crate::{Error, Result};
 
+
+const MAX_SYMBOL_ID: u32 = 20;
 const SYMBOL_PARTS: &str = include_str!("symbol_parts.txt");
 const SYMBOL_PART_WIDTH: usize = 6;
 const SYMBOL_PART_HEIGTH: usize = 3;
@@ -11,7 +14,42 @@ const SYMBOL_PART_HEIGTH: usize = 3;
 
 #[derive(Debug, Clone, Copy, BinRead, BinWrite)]
 pub struct Symbol {
-    pub id: u32,
+    #[br(assert(id < MAX_SYMBOL_ID))]
+    id: u32,
+}
+
+impl Symbol {
+    pub fn set_by_id(&mut self, id: u32) -> Result<()> {
+        if id > MAX_SYMBOL_ID {
+            return Err(Error::SymbolIdOutOfRange);
+        }
+
+        self.id = id;
+
+        Ok(())
+    }
+
+    pub fn wrapping_next(&self) -> Self {
+        let id = self.id + 1;
+        if id > MAX_SYMBOL_ID {
+            Self { id: 0 }
+        } else {
+            Self { id }
+        }
+    }
+
+    pub fn wrapping_previous(&self) -> Self {
+        match self.id.checked_sub(1) {
+            Some(id) => Self { id },
+            None => Self { id: MAX_SYMBOL_ID },
+        }
+    }
+}
+
+impl AsRef<u32> for Symbol {
+    fn as_ref(&self) -> &u32 {
+        &self.id
+    }
 }
 
 impl fmt::Display for Symbol {
