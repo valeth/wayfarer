@@ -12,9 +12,8 @@ use crate::*;
 fn general_info() {
     let savefile = savefile();
 
-    assert_eq!(savefile.robe, 3);
-    assert_eq!(savefile.robe_color(), RobeColor::Red);
-    assert_eq!(savefile.robe_tier(), 4);
+    assert_eq!(savefile.robe.color(), RobeColor::Red);
+    assert_eq!(savefile.robe.tier(), 4);
 
     assert_eq!(savefile.symbol.as_ref(), &7);
     assert_eq!(savefile.scarf_length.as_ref(), &27);
@@ -146,58 +145,6 @@ fn murals() {
     }
 
     assert_eq!(savefile.murals.has_found(69, 420), None);
-}
-
-
-#[test]
-fn change_robe_color() {
-    let mut savefile = savefile();
-
-    // lowest tier
-    savefile.robe = 0;
-
-    savefile.set_robe_color(RobeColor::White);
-    assert_eq!(savefile.robe_color(), RobeColor::White);
-
-    savefile.set_robe_color(RobeColor::Red);
-    assert_eq!(savefile.robe_color(), RobeColor::Red);
-
-    // highest tier
-    savefile.robe = 3;
-
-    savefile.set_robe_color(RobeColor::White);
-    assert_eq!(savefile.robe_color(), RobeColor::White);
-
-    savefile.set_robe_color(RobeColor::Red);
-    assert_eq!(savefile.robe_color(), RobeColor::Red);
-}
-
-
-#[test]
-fn change_robe_tier() {
-    let mut savefile = savefile();
-
-    savefile.set_robe_tier(1);
-    assert_eq!(savefile.robe_tier(), 1);
-    assert_eq!(savefile.robe_color(), RobeColor::Red);
-
-    savefile.set_robe_tier(4);
-    assert_eq!(savefile.robe_tier(), 4);
-    assert_eq!(savefile.robe_color(), RobeColor::Red);
-
-    savefile.set_robe_color(RobeColor::White);
-
-    savefile.set_robe_tier(2);
-    assert_eq!(savefile.robe_tier(), 2);
-    assert_eq!(savefile.robe_color(), RobeColor::White);
-
-    savefile.set_robe_tier(1);
-    assert_eq!(savefile.robe_tier(), 2);
-    assert_eq!(savefile.robe_color(), RobeColor::White);
-
-    savefile.set_robe_tier(4);
-    assert_eq!(savefile.robe_tier(), 4);
-    assert_eq!(savefile.robe_color(), RobeColor::White);
 }
 
 

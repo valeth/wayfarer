@@ -68,14 +68,14 @@ fn edit_file(cur_savefile: &Savefile, args: &Args) -> Result<Savefile> {
 
     if let Some(color) = &args.robe_color {
         match color.as_ref() {
-            "red" => savefile.set_robe_color(RobeColor::Red),
-            "white" => savefile.set_robe_color(RobeColor::White),
+            "red" => savefile.robe.set_color(RobeColor::Red),
+            "white" => savefile.robe.set_color(RobeColor::White),
             _ => (),
         }
     }
 
     if let Some(tier) = args.robe_tier {
-        savefile.set_robe_tier(tier);
+        savefile.robe.set_tier(tier)?;
     }
 
     Ok(savefile)

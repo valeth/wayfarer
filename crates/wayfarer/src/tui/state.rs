@@ -6,7 +6,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
-use jrny_save::{RobeColor, Savefile};
+use jrny_save::Savefile;
 use ratatui::widgets::TableState;
 use tracing::{debug, error};
 use tui_input::Input;
@@ -175,15 +175,8 @@ impl State {
             4 => savefile.companions_met = value.parse()?,
             5 => savefile.scarf_length.set_length(value.parse()?)?,
             6 => savefile.symbol.set_by_id(value.parse()?)?,
-            7 => {
-                let new_color = match value {
-                    "Red" | "red" => RobeColor::Red,
-                    "White" | "white" => RobeColor::White,
-                    _ => bail!("invalid robe color"),
-                };
-                savefile.set_robe_color(new_color);
-            }
-            8 => savefile.set_robe_tier(value.parse()?),
+            7 => savefile.robe.set_color(value.parse()?),
+            8 => savefile.robe.set_tier(value.parse()?)?,
             9 => {}
             idx => debug!("unknown index {:?}", idx),
         }
@@ -213,16 +206,8 @@ impl State {
             4 => savefile.companions_met += 1,
             5 => savefile.scarf_length.increase_length()?,
             6 => savefile.symbol = savefile.symbol.wrapping_next(),
-            7 => {
-                savefile.set_robe_color(match savefile.robe_color() {
-                    RobeColor::Red => RobeColor::White,
-                    RobeColor::White => RobeColor::Red,
-                });
-            }
-            8 => {
-                let next_tier = savefile.robe_tier() + 1;
-                savefile.set_robe_tier(next_tier);
-            }
+            7 => savefile.robe.swap_colors(),
+            8 => savefile.robe.increase_tier(),
             9 => {}
             idx => debug!("unknown index {:?}", idx),
         }
@@ -255,16 +240,8 @@ impl State {
             4 => savefile.companions_met = savefile.companions_met.saturating_sub(1),
             5 => savefile.scarf_length.decrease_length()?,
             6 => savefile.symbol = savefile.symbol.wrapping_previous(),
-            7 => {
-                savefile.set_robe_color(match savefile.robe_color() {
-                    RobeColor::Red => RobeColor::White,
-                    RobeColor::White => RobeColor::Red,
-                });
-            }
-            8 => {
-                let next_tier = savefile.robe_tier().saturating_sub(1);
-                savefile.set_robe_tier(next_tier);
-            }
+            7 => savefile.robe.swap_colors(),
+            8 => savefile.robe.decrease_tier(),
             9 => {}
             idx => debug!("unknown index {:?}", idx),
         }

@@ -2,12 +2,12 @@ mod companion;
 mod glyphs;
 mod level;
 mod murals;
+mod robe;
 mod scarf;
 mod symbol;
 mod test;
 
 
-use core::fmt;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use binrw::{until_eof, BinRead, BinReaderExt, BinWriterExt};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use level::Level;
+use robe::Robe;
 use scarf::Scarf;
 use symbol::Symbol;
 
@@ -22,6 +23,7 @@ use crate::companion::{CompanionSymbols, CompanionWithId, Companions};
 use crate::glyphs::Glyphs;
 pub use crate::level::NAMES as LEVEL_NAMES;
 use crate::murals::Murals;
+pub use crate::robe::Color as RobeColor;
 
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -53,24 +55,11 @@ pub enum Error {
     #[error("Symbol id is out of range")]
     SymbolIdOutOfRange,
 
+    #[error(transparent)]
+    RobeChange(robe::Error),
+
     #[error("Failed to read file")]
     FileReadingFailed(io::Error),
-}
-
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RobeColor {
-    Red,
-    White,
-}
-
-impl fmt::Display for RobeColor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Red => write!(f, "Red"),
-            Self::White => write!(f, "White"),
-        }
-    }
 }
 
 
@@ -84,7 +73,7 @@ pub struct Savefile {
     #[br(count = 8)]
     _unknown0: Vec<u8>,
 
-    robe: u32,
+    pub robe: Robe,
 
     pub symbol: Symbol,
 
@@ -191,42 +180,6 @@ impl Savefile {
                     None
                 }
             })
-    }
-
-    pub fn robe_color(&self) -> RobeColor {
-        if self.robe > 3 {
-            RobeColor::White
-        } else {
-            RobeColor::Red
-        }
-    }
-
-    pub fn set_robe_color(&mut self, color: RobeColor) {
-        self.robe = match (self.robe_color(), color) {
-            (RobeColor::Red, RobeColor::White) => self.robe + 4,
-            (RobeColor::White, RobeColor::Red) => self.robe - 4,
-            _ => return,
-        }
-    }
-
-    pub fn robe_tier(&self) -> u32 {
-        match self.robe_color() {
-            RobeColor::Red => self.robe + 1,
-            RobeColor::White => self.robe - 2,
-        }
-    }
-
-    pub fn set_robe_tier(&mut self, tier: u32) {
-        if tier < 1 || tier > 4 {
-            return;
-        }
-
-        self.robe = match self.robe_color() {
-            RobeColor::Red => tier - 1,
-            // There can't be a tier 1 white robe, setting it to the lowers possible tier
-            RobeColor::White if tier == 1 => 4,
-            RobeColor::White => tier + 2,
-        }
     }
 }
 

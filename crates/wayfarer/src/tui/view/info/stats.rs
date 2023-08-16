@@ -56,8 +56,8 @@ pub(super) fn render<'a>(state: &mut State, frame: &mut Frame, area: Rect) {
         ("Companions Met", savefile.companions_met.to_string()),
         ("Scarf Length", savefile.scarf_length.to_string()),
         ("Symbol Number", savefile.symbol.as_ref().to_string()),
-        ("Robe Color", savefile.robe_color().to_string()),
-        ("Robe Tier", savefile.robe_tier().to_string()),
+        ("Robe Color", savefile.robe.color().to_string()),
+        ("Robe Tier", savefile.robe.tier().to_string()),
         ("Last Played", savefile.last_played.to_string()),
     ]
     .into_iter()
