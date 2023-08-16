@@ -173,14 +173,7 @@ impl State {
             2 => savefile.total_collected_symbols = value.parse()?,
             3 => savefile.current_level.set_by_name(value)?,
             4 => savefile.companions_met = value.parse()?,
-            5 => {
-                let new_length = value.parse()?;
-                if new_length > 30 {
-                    bail!("Max length exceeded");
-                }
-
-                savefile.scarf_length = new_length;
-            }
+            5 => savefile.scarf_length.set_length(value.parse()?)?,
             6 => savefile.symbol.set_by_id(value.parse()?)?,
             7 => {
                 let new_color = match value {
@@ -218,11 +211,7 @@ impl State {
             2 => savefile.total_collected_symbols += 1,
             3 => savefile.current_level = savefile.current_level.wrapping_next(),
             4 => savefile.companions_met += 1,
-            5 => {
-                if savefile.scarf_length < 30 {
-                    savefile.scarf_length += 1;
-                }
-            }
+            5 => savefile.scarf_length.increase_length()?,
             6 => savefile.symbol = savefile.symbol.wrapping_next(),
             7 => {
                 savefile.set_robe_color(match savefile.robe_color() {
@@ -264,11 +253,7 @@ impl State {
             }
             3 => savefile.current_level = savefile.current_level.wrapping_previous(),
             4 => savefile.companions_met = savefile.companions_met.saturating_sub(1),
-            5 => {
-                if savefile.scarf_length > 0 {
-                    savefile.scarf_length = savefile.scarf_length.saturating_sub(1);
-                }
-            }
+            5 => savefile.scarf_length.decrease_length()?,
             6 => savefile.symbol = savefile.symbol.wrapping_previous(),
             7 => {
                 savefile.set_robe_color(match savefile.robe_color() {

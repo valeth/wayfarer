@@ -2,6 +2,7 @@ mod companion;
 mod glyphs;
 mod level;
 mod murals;
+mod scarf;
 mod symbol;
 mod test;
 
@@ -14,6 +15,7 @@ use std::path::{Path, PathBuf};
 use binrw::{until_eof, BinRead, BinReaderExt, BinWriterExt};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use level::Level;
+use scarf::Scarf;
 use symbol::Symbol;
 
 use crate::companion::{CompanionSymbols, CompanionWithId, Companions};
@@ -38,6 +40,15 @@ pub enum Error {
 
     #[error("Level name was not found")]
     LevelNameNotFound,
+
+    #[error("Scarf already at maximum length")]
+    ScarfMaxLength,
+
+    #[error("Scarf already at minimum length")]
+    ScarfMinLength,
+
+    #[error("Scarf can be at most 30 long")]
+    ScarfTooLong,
 
     #[error("Symbol id is out of range")]
     SymbolIdOutOfRange,
@@ -77,7 +88,7 @@ pub struct Savefile {
 
     pub symbol: Symbol,
 
-    pub scarf_length: u32,
+    pub scarf_length: Scarf,
 
     #[br(count = 4)]
     _unknown1: Vec<u8>,

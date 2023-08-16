@@ -55,7 +55,7 @@ fn edit_file(cur_savefile: &Savefile, args: &Args) -> Result<Savefile> {
     let mut savefile = cur_savefile.clone();
 
     if let Some(val) = args.scarf_length {
-        savefile.scarf_length = val;
+        savefile.scarf_length.set_length(val)?;
     }
 
     if let Some(val) = &args.current_level {
