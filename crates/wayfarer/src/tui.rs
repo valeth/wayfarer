@@ -54,6 +54,16 @@ pub enum Message {
     #[cfg(feature = "watch")]
     ToggleFileWatch,
 
+    StartEditEntry,
+
+    CommitEditEntry,
+
+    CancelEditEntry,
+
+    NextEntryValue,
+
+    PreviousEntryValue,
+
     ReloadFile,
 
     MoveSection(Direction),
@@ -122,16 +132,12 @@ fn handle_message(
     message: Message,
 ) -> Result<()> {
     match message {
-        Message::SetMode(Mode::Edit) => {
-            state.edit_current_file();
-        }
-
+        Message::SetMode(Mode::Edit) => state.edit_current_file(),
         Message::SetMode(mode) => {
             debug!("Setting mode to {:?}", mode);
 
             state.mode = mode;
         }
-
         Message::LoadFile => {
             let file_path = state.file_select.value();
             info!("Loading file {}", file_path);
@@ -145,10 +151,9 @@ fn handle_message(
 
             msg_tx.send(Message::SetMode(Mode::Normal))?;
         }
-
         #[cfg(feature = "watch")]
         Message::ToggleFileWatch => {
-            if let Some(savefile) = state.savefile() {
+            if let Some(savefile) = &state.savefile {
                 if state.is_watching_file() {
                     let evq_tx = msg_tx.clone();
                     let callback = move || {
@@ -163,19 +168,26 @@ fn handle_message(
                 }
             }
         }
-
-        Message::ReloadFile => {
-            state.reload_active_savefile()?;
+        Message::ReloadFile => state.reload_active_savefile()?,
+        Message::MoveSection(direction) => state.move_section(direction),
+        Message::MoveCur(direction) => state.move_in_current_section(direction),
+        Message::StartEditEntry => state.start_editing_entry(),
+        Message::CommitEditEntry => {
+            if let Err(err) = state.commit_entry_edit() {
+                error!(%err);
+            }
         }
-
-        Message::MoveSection(direction) => {
-            state.move_section(direction);
+        Message::CancelEditEntry => state.cancel_editing_entry(),
+        Message::NextEntryValue => {
+            if let Err(err) = state.next_entry_value() {
+                error!(%err);
+            }
         }
-
-        Message::MoveCur(direction) => {
-            state.move_in_current_section(direction);
+        Message::PreviousEntryValue => {
+            if let Err(err) = state.previous_entry_value() {
+                error!(%err);
+            }
         }
-
         _ => (),
     }
 

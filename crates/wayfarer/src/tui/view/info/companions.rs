@@ -8,7 +8,7 @@ use crate::tui::State;
 
 
 pub(super) fn render<'a>(state: &State, frame: &mut Frame, area: Rect) {
-    let Some(savefile) = state.savefile() else {
+    let Some(savefile) = &state.savefile else {
         return
     };
 

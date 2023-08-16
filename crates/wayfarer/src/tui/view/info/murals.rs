@@ -15,7 +15,7 @@ pub(super) fn render<'a>(state: &mut State, frame: &mut Frame, area: Rect) {
     const FOUND_SIGN: &str = "▾";
     const NOT_FOUND_SIGN: &str = "▿";
 
-    let Some(savefile) = state.savefile() else {
+    let Some(savefile) = &state.savefile else {
         return
     };
 

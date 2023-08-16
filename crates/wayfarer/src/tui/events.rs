@@ -49,6 +49,10 @@ fn handle_keyboard_input(
             msg_tx.send(Message::Exit)?;
         }
 
+        (Mode::Insert, KeyCode::Esc) => {
+            msg_tx.send(Message::CancelEditEntry)?;
+        }
+
         (_, KeyCode::Esc) => {
             msg_tx.send(Message::SetMode(Mode::Normal))?;
         }
@@ -107,6 +111,28 @@ fn handle_keyboard_input(
 
         (Mode::Edit, KeyCode::Char('l')) => {
             msg_tx.send(Message::MoveCur(Direction::Right))?;
+        }
+
+        (Mode::Edit, KeyCode::Enter) => {
+            msg_tx.send(Message::StartEditEntry)?;
+        }
+
+        (Mode::Edit, KeyCode::Char('n')) => {
+            msg_tx.send(Message::NextEntryValue)?;
+        }
+
+        (Mode::Edit, KeyCode::Char('p')) => {
+            msg_tx.send(Message::PreviousEntryValue)?;
+        }
+
+        (Mode::Insert, KeyCode::Enter) => {
+            msg_tx.send(Message::CommitEditEntry)?;
+        }
+
+        (Mode::Insert, _) => {
+            if let Some(input) = &mut state.edit_input {
+                input.handle_event(&Event::Key(key));
+            }
         }
 
         (Mode::Normal, KeyCode::Char('e')) => {

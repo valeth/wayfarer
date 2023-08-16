@@ -3,8 +3,8 @@ use std::io::Write;
 use std::os::unix::prelude::OsStrExt;
 use std::path::Path;
 
-use anyhow::Result;
-use jrny_save::Savefile;
+use anyhow::{bail, Context, Result};
+use jrny_save::{RobeColor, Savefile, LEVEL_NAMES};
 use ratatui::widgets::TableState;
 use tracing::debug;
 use tui_input::Input;
@@ -25,9 +25,17 @@ pub enum Mode {
 
     Edit,
 
+    Insert,
+
     ShowError(String),
 
     SelectFile,
+}
+
+impl Mode {
+    pub fn is_editing(&self) -> bool {
+        self == &Self::Edit || self == &Self::Insert
+    }
 }
 
 
@@ -43,13 +51,14 @@ pub enum Section {
 
 #[derive(Default)]
 pub struct State {
-    savefile: Option<Savefile>,
+    pub savefile: Option<Savefile>,
     original_file: Option<Savefile>,
     pub active_section: Section,
     pub stats_table: TableState,
     pub glyphs_table: TableState,
     pub murals_table: TableState,
     pub mode: Mode,
+    pub edit_input: Option<Input>,
     pub file_select: Input,
     #[cfg(feature = "watch")]
     file_watcher: Option<FileWatcher>,
@@ -70,10 +79,6 @@ impl State {
             savefile,
             ..Default::default()
         })
-    }
-
-    pub fn savefile(&self) -> Option<&Savefile> {
-        self.savefile.as_ref()
     }
 
     pub fn set_savefile_from_path<P>(&mut self, path: P) -> Result<()>
@@ -105,13 +110,209 @@ impl State {
     }
 
     pub fn edit_current_file(&mut self) {
-        self.original_file = self.savefile.clone();
-        self.select_section(self.active_section);
+        if !self.mode.is_editing() {
+            self.original_file = self.savefile.clone();
+            self.select_section(self.active_section);
+            self.mode = Mode::Edit;
+        }
+    }
+
+    pub fn start_editing_entry(&mut self) {
+        self.mode = Mode::Insert;
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn commit_entry_edit(&mut self) -> Result<()> {
+        debug!(section = ?self.active_section);
+
+        match self.active_section {
+            Section::General => self.edit_stats_section()?,
+            _ => (),
+        }
+
         self.mode = Mode::Edit;
+
+        Ok(())
+    }
+
+    fn edit_stats_section(&mut self) -> Result<()> {
+        let Some(savefile) = &mut self.savefile else {
+            bail!("No savefile loaded");
+        };
+
+        let input = self.edit_input.take().context("no edit input")?;
+        let value = input.value();
+
+        match self.stats_table.selected().context("no selection")? {
+            0 => savefile.journey_count = value.parse()?,
+            1 => savefile.total_companions_met = value.parse()?,
+            2 => savefile.total_collected_symbols = value.parse()?,
+            3 => {
+                let level_id = LEVEL_NAMES
+                    .iter()
+                    .position(|&v| v == value.trim_end())
+                    .context("invalid level name")?;
+                savefile.current_level = level_id as u64;
+            }
+            4 => savefile.companions_met = value.parse()?,
+            5 => {
+                let new_length = value.parse()?;
+                if new_length > 30 {
+                    bail!("Max length exceeded");
+                }
+
+                savefile.scarf_length = new_length;
+            }
+            6 => {
+                let next_symbol_id = value.parse()?;
+
+                if next_symbol_id > 20 {
+                    bail!("Symbol id out of range");
+                }
+
+                savefile.symbol.id = next_symbol_id;
+            }
+            7 => {
+                let new_color = match value {
+                    "Red" | "red" => RobeColor::Red,
+                    "White" | "white" => RobeColor::White,
+                    _ => bail!("invalid robe color"),
+                };
+                savefile.set_robe_color(new_color);
+            }
+            8 => savefile.set_robe_tier(value.parse()?),
+            9 => {}
+            idx => debug!("unknown index {:?}", idx),
+        }
+
+        Ok(())
+    }
+
+    pub fn next_entry_value(&mut self) -> Result<()> {
+        match self.active_section {
+            Section::General => self.next_stats_entry_value()?,
+            _ => (),
+        }
+
+        Ok(())
+    }
+
+    fn next_stats_entry_value(&mut self) -> Result<()> {
+        let Some(savefile) = &mut self.savefile else {
+            bail!("No savefile loaded");
+        };
+
+        match self.stats_table.selected().context("no selection")? {
+            0 => savefile.journey_count += 1,
+            1 => savefile.total_companions_met += 1,
+            2 => savefile.total_collected_symbols += 1,
+            3 => {
+                let next_level = savefile.current_level + 1;
+                savefile.current_level = if next_level >= LEVEL_NAMES.len() as u64 {
+                    0
+                } else {
+                    savefile.current_level + 1
+                };
+            }
+            4 => savefile.companions_met += 1,
+            5 => {
+                if savefile.scarf_length < 30 {
+                    savefile.scarf_length += 1;
+                }
+            }
+            6 => {
+                let next_symbol = savefile.symbol.id + 1;
+                savefile.symbol.id = if next_symbol > 20 {
+                    0
+                } else {
+                    savefile.symbol.id + 1
+                };
+            }
+            7 => {
+                savefile.set_robe_color(match savefile.robe_color() {
+                    RobeColor::Red => RobeColor::White,
+                    RobeColor::White => RobeColor::Red,
+                });
+            }
+            8 => {
+                let next_tier = savefile.robe_tier() + 1;
+                savefile.set_robe_tier(next_tier);
+            }
+            9 => {}
+            idx => debug!("unknown index {:?}", idx),
+        }
+
+        Ok(())
+    }
+
+    pub fn previous_entry_value(&mut self) -> Result<()> {
+        match self.active_section {
+            Section::General => self.previous_stats_entry_value()?,
+            _ => (),
+        }
+
+        Ok(())
+    }
+
+    fn previous_stats_entry_value(&mut self) -> Result<()> {
+        let Some(savefile) = &mut self.savefile else {
+            bail!("No savefile loaded");
+        };
+
+        match self.stats_table.selected().context("no selection")? {
+            0 => savefile.journey_count = savefile.journey_count.saturating_sub(1),
+            1 => savefile.total_companions_met = savefile.total_companions_met.saturating_sub(1),
+            2 => {
+                savefile.total_collected_symbols =
+                    savefile.total_collected_symbols.saturating_sub(1)
+            }
+            3 => {
+                let next_level: i64 = savefile.current_level as i64 - 1;
+                savefile.current_level = if next_level < 0 {
+                    LEVEL_NAMES.len() as u64 - 1
+                } else {
+                    next_level as u64
+                };
+            }
+            4 => savefile.companions_met = savefile.companions_met.saturating_sub(1),
+            5 => {
+                if savefile.scarf_length > 0 {
+                    savefile.scarf_length = savefile.scarf_length.saturating_sub(1);
+                }
+            }
+            6 => {
+                let next_symbol = savefile.symbol.id as i32 - 1;
+                savefile.symbol.id = if next_symbol < 0 {
+                    20
+                } else {
+                    next_symbol as u32
+                };
+            }
+            7 => {
+                savefile.set_robe_color(match savefile.robe_color() {
+                    RobeColor::Red => RobeColor::White,
+                    RobeColor::White => RobeColor::Red,
+                });
+            }
+            8 => {
+                let next_tier = savefile.robe_tier().saturating_sub(1);
+                savefile.set_robe_tier(next_tier);
+            }
+            9 => {}
+            idx => debug!("unknown index {:?}", idx),
+        }
+        Ok(())
+    }
+
+    pub fn cancel_editing_entry(&mut self) {
+        if self.mode == Mode::Insert {
+            self.edit_input = None;
+            self.mode = Mode::Edit;
+        }
     }
 
     pub fn is_savefile_loaded(&self) -> bool {
-        self.savefile().is_some()
+        self.savefile.is_some()
     }
 
     #[cfg(feature = "watch")]

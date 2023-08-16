@@ -17,8 +17,8 @@ pub fn render(state: &State, mut frame: &mut Frame, area: Rect) {
             frame.render_widget(error_msg, area);
         }
 
-        Mode::Edit => {
-            if let Some(savefile) = state.savefile() {
+        Mode::Edit | Mode::Insert => {
+            if let Some(savefile) = &state.savefile {
                 let text = format!("Editing file: {}", savefile.path.display());
                 let status = Paragraph::new(text).block(status_block);
                 frame.render_widget(status, area);
@@ -27,22 +27,22 @@ pub fn render(state: &State, mut frame: &mut Frame, area: Rect) {
 
         #[cfg(feature = "watch")]
         Mode::Normal if state.is_watching_file() => {
-            if let Some(savefile) = state.savefile() {
+            if let Some(savefile) = &state.savefile {
                 let text = format!("Watching file: {}", savefile.path.display());
                 let status = Paragraph::new(text).block(status_block);
                 frame.render_widget(status, area);
             }
         }
 
-        Mode::Normal => {
-            if let Some(savefile) = state.savefile() {
+        Mode::SelectFile => render_file_select(&state, &mut frame, status_block, area),
+
+        _ => {
+            if let Some(savefile) = &state.savefile {
                 let text = format!("Showing file: {}", savefile.path.display());
                 let status = Paragraph::new(text).block(status_block);
                 frame.render_widget(status, area);
             }
         }
-
-        Mode::SelectFile => render_file_select(&state, &mut frame, status_block, area),
     }
 }
 
