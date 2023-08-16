@@ -17,7 +17,7 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use ratatui::backend::CrosstermBackend;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 use self::state::{Mode, State};
 
@@ -104,6 +104,8 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
 
         events::handle(&mut msg_tx, &mut state)?;
 
+        state.clear_expired_error_message();
+
         match msg_rx.try_recv() {
             Ok(Message::Exit) => {
                 debug!("Exiting...");
@@ -111,8 +113,7 @@ fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
             }
             Ok(message) => {
                 if let Err(err) = handle_message(&mut state, &mut msg_tx, message) {
-                    error!(message = ?err);
-                    state.mode = Mode::ShowError(format!("{}", err));
+                    state.show_error_message(err);
                 }
             }
             Err(TryRecvError::Empty) => (),
@@ -174,18 +175,18 @@ fn handle_message(
         Message::StartEditEntry => state.start_editing_entry(),
         Message::CommitEditEntry => {
             if let Err(err) = state.commit_entry_edit() {
-                error!(%err);
+                state.show_error_message(err);
             }
         }
         Message::CancelEditEntry => state.cancel_editing_entry(),
         Message::NextEntryValue => {
             if let Err(err) = state.next_entry_value() {
-                error!(%err);
+                state.show_error_message(err);
             }
         }
         Message::PreviousEntryValue => {
             if let Err(err) = state.previous_entry_value() {
-                error!(%err);
+                state.show_error_message(err);
             }
         }
         _ => (),

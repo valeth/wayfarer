@@ -6,21 +6,28 @@ use crate::tui::view::Frame;
 use crate::tui::{Mode, State};
 
 
-pub fn render(state: &State, mut frame: &mut Frame, area: Rect) {
+pub fn render(state: &State, frame: &mut Frame, area: Rect) {
     let status_block = Block::default().padding(Padding::horizontal(2));
 
-    match &state.mode {
-        Mode::ShowError(error_msg) => {
-            let error_msg = Paragraph::new(error_msg.clone())
-                .style(Style::default().fg(ratatui::style::Color::LightRed))
-                .block(status_block);
-            frame.render_widget(error_msg, area);
-        }
+    match &state.error_msg {
+        Some((_, msg)) => render_error_message(&msg, frame, status_block, area),
+        None => render_status(state, frame, status_block, area),
+    }
+}
 
+fn render_error_message(msg: &str, frame: &mut Frame, block: Block, area: Rect) {
+    let error_msg = Paragraph::new(msg)
+        .style(Style::default().fg(ratatui::style::Color::LightRed))
+        .block(block);
+    frame.render_widget(error_msg, area);
+}
+
+pub fn render_status(state: &State, mut frame: &mut Frame, block: Block, area: Rect) {
+    match &state.mode {
         Mode::Edit | Mode::Insert => {
             if let Some(savefile) = &state.savefile {
                 let text = format!("Editing file: {}", savefile.path.display());
-                let status = Paragraph::new(text).block(status_block);
+                let status = Paragraph::new(text).block(block);
                 frame.render_widget(status, area);
             }
         }
@@ -29,23 +36,22 @@ pub fn render(state: &State, mut frame: &mut Frame, area: Rect) {
         Mode::Normal if state.is_watching_file() => {
             if let Some(savefile) = &state.savefile {
                 let text = format!("Watching file: {}", savefile.path.display());
-                let status = Paragraph::new(text).block(status_block);
+                let status = Paragraph::new(text).block(block);
                 frame.render_widget(status, area);
             }
         }
 
-        Mode::SelectFile => render_file_select(&state, &mut frame, status_block, area),
+        Mode::SelectFile => render_file_select(&state, &mut frame, block, area),
 
         _ => {
             if let Some(savefile) = &state.savefile {
                 let text = format!("Showing file: {}", savefile.path.display());
-                let status = Paragraph::new(text).block(status_block);
+                let status = Paragraph::new(text).block(block);
                 frame.render_widget(status, area);
             }
         }
     }
 }
-
 
 fn render_file_select(state: &State, frame: &mut Frame, block: Block, area: Rect) {
     const PROMPT: &str = "Open file:";

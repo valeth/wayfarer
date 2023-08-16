@@ -1,12 +1,14 @@
+use core::fmt;
 use std::fs::{self, create_dir_all, read_to_string};
 use std::io::Write;
 use std::os::unix::prelude::OsStrExt;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
 use jrny_save::{RobeColor, Savefile, LEVEL_NAMES};
 use ratatui::widgets::TableState;
-use tracing::debug;
+use tracing::{debug, error};
 use tui_input::Input;
 
 use super::view::info::glyphs::TABLE_RANGE as GLYPHS_TABLE_RANGE;
@@ -26,8 +28,6 @@ pub enum Mode {
     Edit,
 
     Insert,
-
-    ShowError(String),
 
     SelectFile,
 }
@@ -57,6 +57,7 @@ pub struct State {
     pub stats_table: TableState,
     pub glyphs_table: TableState,
     pub murals_table: TableState,
+    pub error_msg: Option<(Instant, String)>,
     pub mode: Mode,
     pub edit_input: Option<Input>,
     pub file_select: Input,
@@ -66,6 +67,29 @@ pub struct State {
 
 
 impl State {
+    const ERROR_MSG_DURATION: Duration = Duration::new(3, 0);
+
+    pub fn show_error_message<S>(&mut self, msg: S)
+    where
+        S: fmt::Display,
+    {
+        let until = Instant::now() + Self::ERROR_MSG_DURATION;
+        error!(%msg);
+        self.error_msg = Some((until, msg.to_string()));
+    }
+
+    pub fn clear_expired_error_message(&mut self) {
+        if let Some((until, _)) = self.error_msg {
+            if Instant::now() >= until {
+                self.error_msg = None;
+            }
+        }
+    }
+
+    pub fn clear_error_message(&mut self) {
+        self.error_msg.take();
+    }
+
     pub fn load() -> Result<Self> {
         let data_dir = DIRS.data_local_dir();
 

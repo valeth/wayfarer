@@ -57,10 +57,6 @@ fn handle_keyboard_input(
             msg_tx.send(Message::SetMode(Mode::Normal))?;
         }
 
-        (Mode::ShowError(_), _) => {
-            msg_tx.send(Message::SetMode(Mode::Normal))?;
-        }
-
         (Mode::SelectFile, KeyCode::Enter) => {
             msg_tx.send(Message::LoadFile)?;
         }
@@ -146,6 +142,8 @@ fn handle_keyboard_input(
 
         _ => (),
     };
+
+    state.clear_error_message();
 
     Ok(())
 }
