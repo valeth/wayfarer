@@ -156,6 +156,9 @@ fn handle_message(
         Message::ToggleFileWatch => {
             if let Some(savefile) = &state.savefile {
                 if state.is_watching_file() {
+                    info!("Stopped file watcher on {}", savefile.path.display());
+                    state.reset_file_watcher();
+                } else {
                     let evq_tx = msg_tx.clone();
                     let callback = move || {
                         evq_tx.send(Message::ReloadFile).unwrap();
@@ -163,9 +166,6 @@ fn handle_message(
 
                     info!("Starting file watcher on {}", savefile.path.display());
                     state.enable_file_watcher(callback);
-                } else {
-                    info!("Stopped file watcher on {}", savefile.path.display());
-                    state.reset_file_watcher();
                 }
             }
         }
