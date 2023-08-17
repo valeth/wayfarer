@@ -58,7 +58,11 @@ fn handle_keyboard_input(
         }
 
         (Mode::SelectFile, KeyCode::Enter) => {
-            msg_tx.send(Message::LoadFile)?;
+            if state.prompt_save {
+                msg_tx.send(Message::SaveFile)?;
+            } else {
+                msg_tx.send(Message::LoadFile)?;
+            }
         }
 
         (Mode::SelectFile, _) => {
@@ -119,6 +123,12 @@ fn handle_keyboard_input(
 
         (Mode::Edit, KeyCode::Char('p')) => {
             msg_tx.send(Message::PreviousEntryValue)?;
+        }
+
+        (Mode::Edit, KeyCode::Char('s')) => {
+            state.prompt_save = true;
+            state.file_select = Input::default();
+            msg_tx.send(Message::SetMode(Mode::SelectFile))?;
         }
 
         (Mode::Insert, KeyCode::Enter) => {

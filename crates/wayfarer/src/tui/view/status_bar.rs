@@ -54,16 +54,21 @@ pub fn render_status(state: &State, mut frame: &mut Frame, block: Block, area: R
 }
 
 fn render_file_select(state: &State, frame: &mut Frame, block: Block, area: Rect) {
-    const PROMPT: &str = "Open file:";
     const PADDING: usize = 2;
 
+    let prompt = if state.prompt_save {
+        "Save as:"
+    } else {
+        "Open file:"
+    };
+
     let scroll = state.file_select.visual_scroll(area.width as usize);
-    let input = Paragraph::new(format!("{} {}", PROMPT, state.file_select.value()))
+    let input = Paragraph::new(format!("{} {}", prompt, state.file_select.value()))
         .scroll((0, scroll as u16))
         .block(block);
     frame.render_widget(input, area);
     frame.set_cursor(
-        area.x + (state.file_select.visual_cursor() + PROMPT.len() + 1 + PADDING) as u16,
+        area.x + (state.file_select.visual_cursor() + prompt.len() + 1 + PADDING) as u16,
         area.y,
     );
 }

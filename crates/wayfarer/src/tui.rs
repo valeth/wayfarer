@@ -69,6 +69,8 @@ pub enum Message {
     MoveSection(Direction),
 
     MoveCur(Direction),
+
+    SaveFile,
 }
 
 
@@ -188,6 +190,15 @@ fn handle_message(
             if let Err(err) = state.previous_entry_value() {
                 state.show_error_message(err);
             }
+        }
+        Message::SaveFile => {
+            info!("Saving file");
+            if let Err(err) = state.save_edited_file() {
+                state.show_error_message(err);
+            }
+
+            state.prompt_save = false;
+            msg_tx.send(Message::SetMode(Mode::Normal))?;
         }
         _ => (),
     }

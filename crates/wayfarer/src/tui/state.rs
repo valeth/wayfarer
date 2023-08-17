@@ -1,5 +1,5 @@
 use core::fmt;
-use std::fs::{self, create_dir_all, read_to_string};
+use std::fs::{self, create_dir_all, read_to_string, OpenOptions};
 use std::io::Write;
 use std::os::unix::prelude::OsStrExt;
 use std::path::Path;
@@ -52,13 +52,14 @@ pub enum Section {
 #[derive(Default)]
 pub struct State {
     pub savefile: Option<Savefile>,
-    original_file: Option<Savefile>,
+    pub original_file: Option<Savefile>,
     pub active_section: Section,
     pub stats_table: TableState,
     pub glyphs_table: TableState,
     pub murals_table: TableState,
     pub error_msg: Option<(Instant, String)>,
     pub mode: Mode,
+    pub prompt_save: bool,
     pub edit_input: Option<Input>,
     pub file_select: Input,
     #[cfg(feature = "watch")]
@@ -68,6 +69,21 @@ pub struct State {
 
 impl State {
     const ERROR_MSG_DURATION: Duration = Duration::new(3, 0);
+
+    pub fn load() -> Result<Self> {
+        let data_dir = DIRS.data_local_dir();
+
+        if !data_dir.exists() {
+            create_dir_all(&data_dir)?;
+        }
+
+        let savefile = load_last_active_savefile()?;
+
+        Ok(Self {
+            savefile,
+            ..Default::default()
+        })
+    }
 
     pub fn show_error_message<S>(&mut self, msg: S)
     where
@@ -88,21 +104,6 @@ impl State {
 
     pub fn clear_error_message(&mut self) {
         self.error_msg.take();
-    }
-
-    pub fn load() -> Result<Self> {
-        let data_dir = DIRS.data_local_dir();
-
-        if !data_dir.exists() {
-            create_dir_all(&data_dir)?;
-        }
-
-        let savefile = load_last_active_savefile()?;
-
-        Ok(Self {
-            savefile,
-            ..Default::default()
-        })
     }
 
     pub fn set_savefile_from_path<P>(&mut self, path: P) -> Result<()>
@@ -286,6 +287,22 @@ impl State {
             let new_savefile = Savefile::from_path(&cur_savefile.path)?;
             self.savefile = Some(new_savefile);
         }
+
+        Ok(())
+    }
+
+    pub fn save_edited_file(&mut self) -> Result<()> {
+        let path = self.file_select.value();
+
+        let savefile = self.savefile.as_ref().context("no active savefile")?;
+
+        let outfile = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
+
+        savefile.write(outfile)?;
 
         Ok(())
     }
