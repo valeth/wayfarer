@@ -77,12 +77,22 @@ impl State {
             create_dir_all(&data_dir)?;
         }
 
-        let savefile = load_last_active_savefile()?;
+        let state = match load_last_active_savefile() {
+            Ok(savefile) => Self {
+                savefile,
+                ..Default::default()
+            },
+            Err(err) => {
+                let mut state = Self {
+                    savefile: None,
+                    ..Default::default()
+                };
+                state.show_error_message(err);
+                state
+            }
+        };
 
-        Ok(Self {
-            savefile,
-            ..Default::default()
-        })
+        Ok(state)
     }
 
     pub fn show_error_message<S>(&mut self, msg: S)
