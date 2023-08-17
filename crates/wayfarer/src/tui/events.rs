@@ -44,114 +44,76 @@ fn handle_keyboard_input(
     msg_tx: &mut mpsc::Sender<Message>,
     state: &mut State,
 ) -> Result<()> {
-    match (&state.mode, key.code) {
-        (_, KeyCode::Char('q')) if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            msg_tx.send(Message::Exit)?;
-        }
-
-        (Mode::Insert, KeyCode::Esc) => {
-            msg_tx.send(Message::CancelEditEntry)?;
-        }
-
-        (_, KeyCode::Esc) => {
-            msg_tx.send(Message::SetMode(Mode::Normal))?;
-        }
-
-        (Mode::SelectFile, KeyCode::Enter) => {
-            if state.prompt_save {
-                msg_tx.send(Message::SaveFile)?;
-            } else {
-                msg_tx.send(Message::LoadFile)?;
+    if key.modifiers.is_empty() {
+        match (key.code, &state.mode) {
+            (KeyCode::Esc, Mode::Insert) => msg_tx.send(Message::CancelEditEntry)?,
+            (KeyCode::Esc, _) => msg_tx.send(Message::SetMode(Mode::Normal))?,
+            (KeyCode::Enter, Mode::Edit) => msg_tx.send(Message::StartEditEntry)?,
+            (KeyCode::Enter, Mode::Insert) => msg_tx.send(Message::CommitEditEntry)?,
+            (KeyCode::Enter, Mode::SelectFile) => {
+                if state.prompt_save {
+                    msg_tx.send(Message::SaveFile)?;
+                } else {
+                    msg_tx.send(Message::LoadFile)?;
+                }
             }
-        }
+            (KeyCode::Char('q'), Mode::Normal) => msg_tx.send(Message::Exit)?,
+            (KeyCode::Char('e'), Mode::Normal) => msg_tx.send(Message::SetMode(Mode::Edit))?,
 
-        (Mode::SelectFile, _) => {
-            state.file_select.handle_event(&Event::Key(key));
-        }
-
-        (Mode::Normal, KeyCode::Char('q')) => {
-            msg_tx.send(Message::Exit)?;
-        }
-
-        (Mode::Normal, KeyCode::Char('o')) => {
-            msg_tx.send(Message::SetMode(Mode::SelectFile))?;
-        }
-
-        (Mode::Normal, KeyCode::Char('r')) => {
-            msg_tx.send(Message::ReloadFile)?;
-        }
-
-        (Mode::Edit, KeyCode::Char('H')) => {
-            msg_tx.send(Message::MoveSection(Direction::Left))?;
-        }
-
-        (Mode::Edit, KeyCode::Char('J')) => {
-            msg_tx.send(Message::MoveSection(Direction::Down))?;
-        }
-
-        (Mode::Edit, KeyCode::Char('K')) => {
-            msg_tx.send(Message::MoveSection(Direction::Up))?;
-        }
-
-        (Mode::Edit, KeyCode::Char('L')) => {
-            msg_tx.send(Message::MoveSection(Direction::Right))?;
-        }
-
-        (Mode::Edit, KeyCode::Char('h')) => {
-            msg_tx.send(Message::MoveCur(Direction::Left))?;
-        }
-
-        (Mode::Edit, KeyCode::Char('j')) => {
-            msg_tx.send(Message::MoveCur(Direction::Down))?;
-        }
-
-        (Mode::Edit, KeyCode::Char('k')) => {
-            msg_tx.send(Message::MoveCur(Direction::Up))?;
-        }
-
-        (Mode::Edit, KeyCode::Char('l')) => {
-            msg_tx.send(Message::MoveCur(Direction::Right))?;
-        }
-
-        (Mode::Edit, KeyCode::Enter) => {
-            msg_tx.send(Message::StartEditEntry)?;
-        }
-
-        (Mode::Edit, KeyCode::Char('n')) => {
-            msg_tx.send(Message::NextEntryValue)?;
-        }
-
-        (Mode::Edit, KeyCode::Char('p')) => {
-            msg_tx.send(Message::PreviousEntryValue)?;
-        }
-
-        (Mode::Edit, KeyCode::Char('s')) => {
-            state.prompt_save = true;
-            state.file_select = Input::default();
-            msg_tx.send(Message::SetMode(Mode::SelectFile))?;
-        }
-
-        (Mode::Insert, KeyCode::Enter) => {
-            msg_tx.send(Message::CommitEditEntry)?;
-        }
-
-        (Mode::Insert, _) => {
-            if let Some(input) = &mut state.edit_input {
-                input.handle_event(&Event::Key(key));
+            // file loading
+            (KeyCode::Char('o'), Mode::Normal) => {
+                state.prompt_save = false;
+                state.file_select = Input::default();
+                msg_tx.send(Message::SetMode(Mode::SelectFile))?
             }
-        }
+            (KeyCode::Char('r'), Mode::Normal) => msg_tx.send(Message::ReloadFile)?,
+            #[cfg(feature = "watch")]
+            (KeyCode::Char('w'), Mode::Normal) => msg_tx.send(Message::ToggleFileWatch)?,
 
-        (Mode::Normal, KeyCode::Char('e')) => {
-            msg_tx.send(Message::SetMode(Mode::Edit))?;
-        }
+            // movement inside editor section
+            (KeyCode::Char('h'), Mode::Edit) => msg_tx.send(Message::MoveCur(Direction::Left))?,
+            (KeyCode::Char('j'), Mode::Edit) => msg_tx.send(Message::MoveCur(Direction::Down))?,
+            (KeyCode::Char('k'), Mode::Edit) => msg_tx.send(Message::MoveCur(Direction::Up))?,
+            (KeyCode::Char('l'), Mode::Edit) => msg_tx.send(Message::MoveCur(Direction::Right))?,
 
-        #[cfg(feature = "watch")]
-        (Mode::Normal, KeyCode::Char('w')) => {
-            msg_tx.send(Message::ToggleFileWatch)?;
-        }
+            // movement between editor sections
+            (KeyCode::Char('H'), Mode::Edit) => {
+                msg_tx.send(Message::MoveSection(Direction::Left))?
+            }
+            (KeyCode::Char('J'), Mode::Edit) => {
+                msg_tx.send(Message::MoveSection(Direction::Down))?
+            }
+            (KeyCode::Char('K'), Mode::Edit) => msg_tx.send(Message::MoveSection(Direction::Up))?,
+            (KeyCode::Char('L'), Mode::Edit) => {
+                msg_tx.send(Message::MoveSection(Direction::Right))?
+            }
 
-        _ => (),
-    };
+            // next/previous value selection
+            (KeyCode::Char('n'), Mode::Edit) => msg_tx.send(Message::NextEntryValue)?,
+            (KeyCode::Char('p'), Mode::Edit) => msg_tx.send(Message::PreviousEntryValue)?,
+
+            // open save prompt
+            (KeyCode::Char('s'), Mode::Edit) => {
+                state.prompt_save = true;
+                state.file_select = Input::default();
+                msg_tx.send(Message::SetMode(Mode::SelectFile))?;
+            }
+            (_, Mode::Insert) => {
+                if let Some(input) = &mut state.edit_input {
+                    input.handle_event(&Event::Key(key));
+                }
+            }
+            (_, Mode::SelectFile) => {
+                state.file_select.handle_event(&Event::Key(key));
+            }
+            _ => (),
+        };
+    } else if key.modifiers.contains(KeyModifiers::CONTROL) {
+        match (key.code, &state.mode) {
+            (KeyCode::Char('q'), _) => msg_tx.send(Message::Exit)?,
+            _ => (),
+        }
+    }
 
     state.clear_error_message();
 
