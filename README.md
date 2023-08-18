@@ -12,24 +12,29 @@ cargo install --git https://github.com/valeth/wayfarer
 
 Make sure the path cargo installs to is in your system's `PATH`.
 
+Then simply run it with
+
 ```sh
 wayfarer
-
-# of if you want to override the last remembered file
-
-wayfarer --path <path-to-savefile>
 ```
+
+Use `--help` to see a list of available options.
 
 
 ## TUI Keybindings
 
-| Key      | Mode   | Description                                         |
-|:--------:|:------:| --------------------------------------------------- |
-| ESC      | Any    | Return to "normal mode"                             |
-| Ctrl + q | Any    | Quits the application                               |
-| q        | Normal | Quits the application                               |
-| o        | Normal | Open a new file                                     |
-| w        | Normal | Toggle file watcher mode (requires "watch" feature) |
-| e        | Normal | Enter edit mode                                     |
-| H,J,K,L  | Edit   | Move between sections                               |
-| h,j,k,l  | Edit   | Move inside the current section                     |
+| Key         | Mode   | Description                                         |
+|:-----------:|:------:| --------------------------------------------------- |
+| ESC         | Any    | Return to "normal mode" or cancel action            |
+| Ctrl + q    | Any    | Quits the application                               |
+| q           | Normal | Quits the application                               |
+| e           | Normal | Enter edit mode                                     |
+| o           | Normal | Open a new file                                     |
+| r           | Normal | Reload the current file                             |
+| w           | Normal | Toggle file watcher mode (requires "watch" feature) |
+| h, j, k, l  | Edit   | Move inside the current section                     |
+| H, J, K, L  | Edit   | Move between sections                               |
+| n, p        | Edit   | Cycle through entry values                          |
+| s           | Edit   | Save current edit                                   |
+| Enter       | Edit   | Begin editing entry                                 |
+| Enter       | Insert | Commit entry edit                                   |
