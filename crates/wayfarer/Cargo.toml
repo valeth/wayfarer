@@ -12,6 +12,7 @@ lazy_static = "1.4"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-appender = "0.2"
+signal-hook = "0.3"
 
 [dependencies.clap]
 version = "4.3"

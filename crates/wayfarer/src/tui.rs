@@ -5,7 +5,9 @@ mod view;
 
 use std::io::{self, Stdout};
 use std::path::PathBuf;
+use std::sync::atomic::{self, AtomicBool};
 use std::sync::mpsc::{self, TryRecvError};
+use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Parser as ArgParser;
@@ -98,8 +100,19 @@ pub(crate) fn execute(args: &Args) -> Result<()> {
 #[cfg_attr(not(feature = "watch"), allow(unused_mut))]
 fn run(terminal: &mut Terminal, mut state: State) -> Result<()> {
     let (mut msg_tx, msg_rx) = mpsc::channel::<Message>();
+    let term_signal_received = Arc::new(AtomicBool::new(false));
+
+    signal_hook::flag::register(
+        signal_hook::consts::SIGTERM,
+        Arc::clone(&term_signal_received),
+    )?;
 
     loop {
+        if term_signal_received.load(atomic::Ordering::Relaxed) {
+            info!("Received termination signal, exiting");
+            break;
+        }
+
         terminal.draw(|frame| {
             view::render(&mut state, frame);
         })?;

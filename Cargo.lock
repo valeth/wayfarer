@@ -1074,6 +1074,7 @@ dependencies = [
  "lazy_static",
  "notify",
  "ratatui",
+ "signal-hook",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
