@@ -41,9 +41,9 @@ fn render_info(state: &mut State, mut frame: &mut Frame, area: Rect) {
     let left_column = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Ratio(1, 3),
-            Constraint::Ratio(1, 3),
-            Constraint::Ratio(1, 3),
+            Constraint::Min(15),
+            Constraint::Min(10),
+            Constraint::Min(11),
         ])
         .split(columns[0]);
 

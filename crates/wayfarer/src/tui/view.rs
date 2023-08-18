@@ -13,10 +13,11 @@ use super::State;
 type Frame<'a> = ratatui::Frame<'a, CrosstermBackend<Stdout>>;
 
 
+// TODO: scroll main content if not enough space available
 pub(super) fn render(state: &mut State, frame: &mut Frame) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(40), Constraint::Length(2)])
+        .constraints([Constraint::Min(36), Constraint::Length(2)])
         .split(frame.size());
 
     info::render(state, frame, rows[0]);
